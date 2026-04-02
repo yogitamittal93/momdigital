@@ -1,26 +1,55 @@
 @import "tailwindcss";
+@import 'tw-animate-css';
+
+/* 1. FONTS (From your index.css) */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Quicksand:wght@400;500;600;700&display=swap');
+
+/* 2. THEME VARIABLES (From your theme.css) */
+@custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --font-size: 16px;
+  --background: #FFF9F5;
+  --foreground: #4A4A4A;
+  --primary: #FF9F89; /* Your Figma Peach */
+  --secondary: #D4B5E8; /* Your Figma Lavender */
+  --accent: #B8E6C9; /* Your Figma Mint */
+  --radius: 1.25rem;
+  /* ... include all other variables from your theme.css here ... */
+}
+
+.dark {
+  --background: #2A2A2A;
+  --foreground: #F5F5F5;
+  /* ... include all other dark mode variables ... */
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-primary: var(--primary);
+  --color-secondary: var(--secondary);
+  --color-accent: var(--accent);
+  --radius-mom: var(--radius);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* 3. BASE STYLES & TYPOGRAPHY */
+@layer base {
+  * { @apply border-border outline-ring/50; }
+  
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', sans-serif;
   }
-}
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  h1, h2, h3, h4 {
+    font-family: 'Quicksand', sans-serif;
+  }
+
+  /* Custom scrollbar (From your tailwind.css) */
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-thumb {
+    background: #FFB4A1;
+    border-radius: 20px;
+  }
 }
