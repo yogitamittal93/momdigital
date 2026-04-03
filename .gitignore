@@ -1,41 +1,38 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
-# dependencies
-/node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
-
-# testing
-/coverage
-
-# next.js
-/.next/
-/out/
-
-# production
-/build
-
-# misc
+# --- Monorepo Root Ignores ---
+node_modules/
+.env
+.env.*
+!.env.example
+*.log
 .DS_Store
-*.pem
 
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
+# --- Docker & Infrastructure ---
+.docker/
+postgres_data/
+docker-compose.override.yml
 
-# env files (can opt-in for committing if needed)
-.env*
+# --- Backend (NestJS & Prisma) ---
+api/node_modules/
+api/dist/
+api/coverage/
+api/.prisma/
+api/prisma/migrations/*.sql
+# Keep migrations but ignore the sqlite db if you ever use it locally
+api/*.db
+api/*.db-journal
 
-# vercel
-.vercel
+# --- Frontend (Next.js) ---
+web/node_modules/
+web/.next/
+web/out/
+web/build/
+web/.vercel
+web/*.tsbuildinfo
+web/next-env.d.ts
 
-# typescript
-*.tsbuildinfo
-next-env.d.ts
+# --- IDE & System ---
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+.eslintcache

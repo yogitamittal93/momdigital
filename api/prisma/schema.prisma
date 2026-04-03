@@ -1,0 +1,24 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  password      String?   // Optional for Social Auth
+  name          String
+  
+  // Specific to MomDigital
+  dueDate       DateTime?
+  babyBirthDate DateTime?
+
+  // Timestamps (Senior Best Practice)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@map("users") // Renames table to lowercase in Postgres
+}

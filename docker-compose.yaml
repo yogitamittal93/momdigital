@@ -1,0 +1,49 @@
+services:
+  # 1. The Local Database
+  db:
+    image: postgres:17-alpine
+    container_name: mom-db
+    restart: always
+    environment:
+      POSTGRES_USER: mom_user
+      POSTGRES_PASSWORD: mom_password
+      POSTGRES_DB: mom_digital
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # 2. The NestJS API (Backend)
+  api:
+    build:
+      context: ./api
+    container_name: mom-api
+    ports:
+      - "3000:3000"
+    environment:
+      # Use "db" (service name) instead of localhost inside Docker
+      DATABASE_URL: "postgresql://mom_user:mom_password@db:5432/mom_digital?schema=public"
+      JWT_SECRET: "your_super_secret_mom_key"
+    depends_on:
+      - db
+    volumes:
+      - ./api:/app
+      - /app/node_modules
+
+  # 3. The Next.js App (Frontend)
+  web:
+    build:
+      context: ./web
+    container_name: mom-web
+    ports:
+      - "3001:3000" # Access Next.js on localhost:3001
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:3000
+    depends_on:
+      - api
+    volumes:
+      - ./web:/app
+      - /app/node_modules
+
+volumes:
+  postgres_data:

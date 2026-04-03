@@ -1,5 +1,5 @@
 import { IsDate, IsDateString, IsEmail, IsNotEmpty, IsOptional, IsString, MinLength } from "class-validator";
-import { IsValidPregnancyDate } from "src/common/decorators/is-valid-pregnancy-date";
+import { IsMomDate } from "src/common/decorators/is-valid-pregnancy-date";
 
 export class RegisterDto {
     @IsEmail({}, {message: 'Please provide a valid email address'})
@@ -13,10 +13,10 @@ export class RegisterDto {
     name!: string;
 
     @IsOptional()
-    @IsValidPregnancyDate()
+    @IsMomDate('future')
     dueDate?: Date;
 
     @IsOptional()
-    @IsDateString() 
+    @IsMomDate('past')
     babyBirthDate?: Date;
 }
