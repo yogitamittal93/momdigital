@@ -1,10 +1,7 @@
-import AuthLayout from "@/components/layout/AuthLayout";
-import LoginForm from "@/components/auth/LoginForm";
+"use client";
+
+import AuthForm from "@/components/auth/AuthForm";
 
 export default function LoginPage() {
-  return (
-    <AuthLayout type="login">
-      <LoginForm />
-    </AuthLayout>
-  );
+  return <AuthForm type="login" />;
 }
