@@ -36,6 +36,12 @@ const signupSchema = z
     password: z.string().min(6),
     confirmPassword: z.string(),
     agreeToTerms: z.literal(true),
+    dueDate: z.string().optional(),
+    babyBirthDate: z.string().optional(),
+  })
+  .refine((d) => Boolean(d.dueDate || d.babyBirthDate), {
+    path: ["dueDate"],
+    message: "Please provide due date or baby birth date",
   })
   .refine((d) => d.password === d.confirmPassword, {
     path: ["confirmPassword"],
@@ -57,6 +63,8 @@ export default function AuthForm({ type }: { type: "login" | "register" }) {
       name: "",
       confirmPassword: "",
       agreeToTerms: false,
+      dueDate: "",
+      babyBirthDate: "",
     },
   });
 
@@ -78,6 +86,8 @@ export default function AuthForm({ type }: { type: "login" | "register" }) {
           name: data.name,
           email: data.email,
           password: data.password,
+          dueDate: data.dueDate || undefined,
+          babyBirthDate: data.babyBirthDate || undefined,
         });
       }
 
@@ -155,6 +165,34 @@ export default function AuthForm({ type }: { type: "login" | "register" }) {
                 </FormItem>
               )}
             />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <FormField
+                control={form.control}
+                name="dueDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Due Date (if pregnant)</FormLabel>
+                    <FormControl>
+                      <Input {...field} type="date" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="babyBirthDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Baby Birth Date (if postpartum)</FormLabel>
+                    <FormControl>
+                      <Input {...field} type="date" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <FormField
               control={form.control}

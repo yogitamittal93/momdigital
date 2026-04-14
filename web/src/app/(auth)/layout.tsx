@@ -7,14 +7,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body>
-        <div className="min-h-screen flex items-center justify-center bg-50">
-        <div className="w-full max-w-md bg-white p-8 rounded-2xl shadow-lg">
-         {children}
-         </div>
-         </div>
-         </body>
-    </html>
+    <div className="min-h-screen flex items-center justify-center bg-background px-4">
+        <div className="w-full max-w-md bg-card p-8 rounded-2xl shadow-lg">
+          {children}
+        </div>
+      </div>
   );
 }

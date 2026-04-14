@@ -4,49 +4,62 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { RegisterDto } from './dto/register.dto';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from 'prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
+import { RedisService } from 'src/common/redis.service';
 
 @Injectable()
 export class AuthService {
   constructor(
-    private prisma: PrismaService,
-    private jwtService: JwtService,
+    private readonly prisma: PrismaService,
+    private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
+    private readonly redisService: RedisService,
   ) {}
 
-  // ✅ TOKEN GENERATOR (WITH SESSION ID)
   private generateTokens(userId: string, email: string, sessionId: string) {
     const payload = { userId, email, sessionId };
 
     const access_token = this.jwtService.sign(payload, {
-      secret: process.env.JWT_ACCESS_SECRET,
+      secret: this.configService.getOrThrow<string>('JWT_ACCESS_SECRET'),
       expiresIn: '15m',
     });
 
     const refresh_token = this.jwtService.sign(payload, {
-      secret: process.env.JWT_REFRESH_SECRET,
+      secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
       expiresIn: '7d',
     });
 
     return { access_token, refresh_token };
   }
-  async getUserProfile(userId: string) {
-  const user = await this.prisma.user.findUnique({
-    where: { id: userId },
-  });
 
-  if (!user) {
-    throw new UnauthorizedException('User not found.');
+  private profileCacheKey(userId: string) {
+    return `auth:profile:${userId}`;
   }
 
-  const { password, ...safeUser } = user;
+  async getUserProfile(userId: string) {
+    const cacheKey = this.profileCacheKey(userId);
+    const cached = await this.redisService.get<{ user: unknown }>(cacheKey);
+    if (cached) return cached;
 
-  return { user: safeUser };
-}
-  // ✅ REGISTER
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found.');
+    }
+
+    const { password, ...safeUser } = user;
+    const payload = { user: safeUser };
+    await this.redisService.set(cacheKey, payload, 120);
+    return payload;
+  }
+
   async register(dto: RegisterDto) {
     if (!dto.dueDate && !dto.babyBirthDate) {
       throw new BadRequestException(
@@ -83,8 +96,7 @@ export class AuthService {
     };
   }
 
-  // ✅ LOGIN (MULTI-DEVICE + SESSION BINDING)
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto, userAgent?: string, ipAddress?: string) {
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
@@ -99,17 +111,17 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    // ✅ CREATE SESSION FIRST
     const session = await this.prisma.session.create({
       data: {
         userId: user.id,
-        refreshToken: 'temp', // placeholder
+        refreshToken: 'temp',
+        userAgent,
+        ipAddress,
       },
     });
 
     const tokens = this.generateTokens(user.id, user.email, session.id);
 
-    // ✅ SAVE HASHED TOKEN
     await this.prisma.session.update({
       where: { id: session.id },
       data: {
@@ -121,19 +133,23 @@ export class AuthService {
 
     return {
       user: safeUser,
+      sessionId: session.id,
       ...tokens,
     };
   }
 
-  // ✅ REFRESH TOKEN (SECURE + ROTATION + REUSE DETECTION)
   async refreshAccessToken(oldRefreshToken: string) {
+    if (!oldRefreshToken) {
+      throw new UnauthorizedException('Refresh token is required');
+    }
+
     try {
       const payload = this.jwtService.verify<{
         userId: string;
         email: string;
         sessionId: string;
       }>(oldRefreshToken, {
-        secret: process.env.JWT_REFRESH_SECRET,
+        secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
       });
 
       const session = await this.prisma.session.findUnique({
@@ -149,7 +165,6 @@ export class AuthService {
         session.refreshToken,
       );
 
-      // 🚨 REUSE DETECTION
       if (!isMatch) {
         await this.prisma.session.delete({
           where: { id: session.id },
@@ -164,7 +179,6 @@ export class AuthService {
         session.id,
       );
 
-      // ✅ ROTATE TOKEN
       await this.prisma.session.update({
         where: { id: session.id },
         data: {
@@ -178,57 +192,45 @@ export class AuthService {
     }
   }
 
-  // ✅ GOOGLE LOGIN (SESSION SAFE)
-  async validateGoogleUser(email: string, name: string) {
-    let user = await this.prisma.user.findUnique({
-      where: { email },
-    });
-
-    if (!user) {
-      user = await this.prisma.user.create({
-        data: {
-          email,
-          name,
-          password: null,
-        },
-      });
-    }
-
-    const session = await this.prisma.session.create({
-      data: {
-        userId: user.id,
-        refreshToken: 'temp',
+  async listSessions(userId: string, currentSessionId?: string) {
+    const sessions = await this.prisma.session.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        userAgent: true,
+        ipAddress: true,
+        createdAt: true,
+        updatedAt: true,
       },
     });
-
-    const tokens = this.generateTokens(user.id, user.email, session.id);
-
-    await this.prisma.session.update({
-      where: { id: session.id },
-      data: {
-        refreshToken: await bcrypt.hash(tokens.refresh_token, 10),
-      },
-    });
-
-    const { password, ...safeUser } = user;
 
     return {
-      user: safeUser,
-      ...tokens,
+      sessions: sessions.map((session) => ({
+        ...session,
+        isCurrent: currentSessionId === session.id,
+      })),
     };
   }
 
-  // ✅ LOGOUT ALL DEVICES
-  async logout(userId: string) {
+  async logoutAll(userId: string) {
     await this.prisma.session.deleteMany({
       where: { userId },
     });
+    await this.redisService.del(this.profileCacheKey(userId));
   }
 
-  // ✅ LOGOUT SINGLE DEVICE
-  async logoutSingleSession(sessionId: string) {
-    await this.prisma.session.delete({
-      where: { id: sessionId },
+  async logoutSession(userId: string, sessionId: string) {
+    const session = await this.prisma.session.findFirst({
+      where: { id: sessionId, userId },
+      select: { id: true },
     });
+
+    if (!session) {
+      throw new UnauthorizedException('Session not found');
+    }
+
+    await this.prisma.session.delete({ where: { id: sessionId } });
+    await this.redisService.del(this.profileCacheKey(userId));
   }
 }

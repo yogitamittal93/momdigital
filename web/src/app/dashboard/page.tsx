@@ -4,7 +4,8 @@ import { Card } from "../../components/ui/card";
 import { Progress } from "../../components/ui/progress";
 import { Button } from "../../components/ui/button";
 import { ImageWithFallback } from "../../components/figma/ImageWithFallback";
-import next from "next";
+import { ThemeToggle } from "../../components/theme/theme-toggle";
+import AppShell from "../../components/layout/app-shell";
 
 export default function HomePage() {
   const weekNumber = 24;
@@ -25,6 +26,7 @@ export default function HomePage() {
   ];
 
   return (
+    <AppShell>
     <div className="min-h-screen bg-background">
       {/* Header */}
       <div className="bg-gradient-to-br from-primary/20 via-secondary/10 to-accent/20 px-4 md:px-8 pt-8 pb-24 rounded-b-[3rem]">
@@ -34,9 +36,12 @@ export default function HomePage() {
               <h1 className="text-2xl md:text-3xl mb-1">Welcome back, Sarah!</h1>
               <p className="text-sm md:text-base text-muted-foreground">How are you feeling today?</p>
             </div>
-            <Button variant="ghost" size="icon" className="rounded-full">
-              <Bell className="w-5 h-5" />
-            </Button>
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              <Button variant="ghost" size="icon" className="rounded-full">
+                <Bell className="w-5 h-5" />
+              </Button>
+            </div>
           </div>
 
           {/* Pregnancy Progress Card */}
@@ -247,5 +252,6 @@ export default function HomePage() {
         </section>
       </div>
     </div>
+    </AppShell>
   );
 }

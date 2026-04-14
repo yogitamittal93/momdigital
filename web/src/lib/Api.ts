@@ -1,34 +1,31 @@
 import axios from "axios";
 
+const baseURL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
+
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000",
+  baseURL,
   withCredentials: true,
 });
 
-/* AUTO REFRESH */
 api.interceptors.response.use(
   (res) => res,
   async (error) => {
     const original = error.config;
 
-    if (error.response?.status === 401 && !original._retry) {
+    if (error.response?.status === 401 && !original?._retry) {
       original._retry = true;
-
       try {
-        await axios.post(
-          `${process.env.NEXT_PUBLIC_API_URL}/auth/refresh`,
-          {},
-          { withCredentials: true }
-        );
-
+        await axios.post(`${baseURL}/auth/refresh`, {}, { withCredentials: true });
         return api(original);
       } catch {
-        window.location.href = "/auth";
+        if (typeof window !== "undefined") {
+          window.location.href = "/login";
+        }
       }
     }
 
     return Promise.reject(error);
-  }
+  },
 );
 
 export default api;

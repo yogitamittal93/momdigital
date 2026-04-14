@@ -1,0 +1,15 @@
+# Midwife Buddy: Principal Architect & PM Standards
+
+## Medical & Cultural Intelligence
+- **Dual-Lineage Logic:** For all health advice, provide a "Modern Clinical (MBBS)" view and an "Integrated Ayurveda" view. Do not mix them into one paragraph; keep them as distinct, complementary insights.
+- **Regional Personalization:** When suggesting recipes/rituals, categorize by Indian region (North, South, East, West, Central). Use local ingredient names (e.g., "Moringa/Drumstick" or "Gond/Edible Gum").
+- **Medical Data Handling:** All file uploads (Medical Data) must be treated as HIPAA/GDPR sensitive. Use Prisma to store file metadata, but ensure files are stored in a secure bucket (S3/R2) with signed URLs.
+
+## UX/UI Design Excellence ("Break the Internet" Quality)
+- **Design Philosophy:** Think "Linear.app meets Calm." High whitespace, soft shadows, micro-animations using Framer Motion, and elegant typography (e.g., Geist or Inter).
+- **FAQ Component:** Use an "Expert-Toggle" or "Split-View" accordion where users can switch between MBBS and Ayurveda perspectives seamlessly.
+- **Mobile-First:** Ensure the "Midwife Buddy" feels like a native app on mobile.
+
+## Backend/API Logic
+- **Neon/Prisma:** Use strictly typed schemas for Recipes and FAQ. 
+- **Zod Validation:** Every regional recipe and medical upload must have strict schema validation.
