@@ -1,5 +1,6 @@
 import { Heart, Calendar, TrendingUp, Bell, ChevronRight, Sparkles, Baby, Users, Star, Shield, Briefcase } from "lucide-react";
 import Link from "next/link";
+import { FeaturedProfessionals } from "../../components/professionals/FeaturedProfessionals";
 import { Card } from "../../components/ui/card";
 import { Progress } from "../../components/ui/progress";
 import { Button } from "../../components/ui/button";
@@ -189,9 +190,13 @@ export default function HomePage() {
           </Card>
         </section>
 
+        {/* Featured Professionals */}
+        <FeaturedProfessionals />
+
         {/* New Features Grid */}
         <section className="mb-8">
-          <h2 className="mb-4">Support & Wellness</h2>
+          <h2 className="mb-4">Support &amp; Wellness</h2>
+
           <div className="grid md:grid-cols-2 gap-4">
             <Link href="/affirmations">
               <Card className="border-none rounded-3xl p-5 shadow-md hover:shadow-lg transition-shadow bg-gradient-to-br from-primary/10 to-transparent">

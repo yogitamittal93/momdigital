@@ -13,3 +13,19 @@
 ## Backend/API Logic
 - **Neon/Prisma:** Use strictly typed schemas for Recipes and FAQ. 
 - **Zod Validation:** Every regional recipe and medical upload must have strict schema validation.
+
+## Role-Based Activity Logic
+- **The Digital Chef:** Focus on nutrition, cravings management, and regional Indian recipes. UI should look like a premium cookbook.
+- **The Digital Nanny:** Focus on baby tracking, sleep cycles, and vaccination alerts. UI should be high-utility with quick-action buttons.
+- **Self-Care (Career/Mindset):** Focus on the mother as an individual. Content should include "Micro-Upskilling" (what to read during nursing) and "Mental Health Checks."
+
+## State Management
+- Use a `lifeStage` enum: [PREGNANCY, POSTPARTUM, YOGA_TRAINER, GYM_TRAINER, PHYSIOTHERAPIST, TRANSITION]. 
+- UI must dynamically hide/show components based on this stage to avoid clutter.
+
+## 6. Multi-Tenant Role Architecture
+- **Roles:** [USER, DOCTOR_MBBS, DOCTOR_AYURVEDA, NUTRITIONIST, CHEF].
+- **Role-Based Routing:** - `/dashboard` -> Mother's view (Chef/Nanny logic).
+  - `/pro/dashboard` -> Expert view (Queue of prescriptions/scans to review).
+- **Expert Gamification:** Track "Reviews Completed." Once an expert reviews 40 scans, trigger a "Featured Pro" badge on the main user feed.
+- **Privacy Wall:** Experts only see medical data they are assigned to review. No global access to user PII.

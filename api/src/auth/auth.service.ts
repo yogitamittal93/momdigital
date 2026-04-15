@@ -6,11 +6,13 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { RegisterDto } from './dto/register.dto';
+import { RegisterExpertDto } from './dto/register-expert.dto';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from 'prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
 import { RedisService } from 'src/common/redis.service';
+import { ExpertStatus, UserRole } from '@prisma/client';
 
 @Injectable()
 export class AuthService {
@@ -21,8 +23,15 @@ export class AuthService {
     private readonly redisService: RedisService,
   ) {}
 
-  private generateTokens(userId: string, email: string, sessionId: string) {
-    const payload = { userId, email, sessionId };
+  private generateTokens(
+    userId: string,
+    email: string,
+    sessionId: string,
+    role: UserRole,
+    isAdmin: boolean,
+    expertStatus?: ExpertStatus,
+  ) {
+    const payload = { userId, email, sessionId, role, isAdmin, expertStatus };
 
     const access_token = this.jwtService.sign(payload, {
       secret: this.configService.getOrThrow<string>('JWT_ACCESS_SECRET'),
@@ -48,14 +57,32 @@ export class AuthService {
 
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        dueDate: true,
+        babyBirthDate: true,
+        role: true,
+        expertStatus: true,
+        isAdmin: true,
+        specialization: true,
+        externalLink: true,
+        avatarUrl: true,
+        contributionCount: true,
+        isFeatured: true,
+        featuredAt: true,
+        createdAt: true,
+        updatedAt: true,
+        // credentialUrl intentionally excluded from profile response
+      },
     });
 
     if (!user) {
       throw new UnauthorizedException('User not found.');
     }
 
-    const { password, ...safeUser } = user;
-    const payload = { user: safeUser };
+    const payload = { user };
     await this.redisService.set(cacheKey, payload, 120);
     return payload;
   }
@@ -85,6 +112,7 @@ export class AuthService {
       data: {
         ...dto,
         password: hashedPassword,
+        role: UserRole.MOTHER,
       },
     });
 
@@ -120,7 +148,14 @@ export class AuthService {
       },
     });
 
-    const tokens = this.generateTokens(user.id, user.email, session.id);
+    const tokens = this.generateTokens(
+      user.id,
+      user.email,
+      session.id,
+      user.role,
+      user.isAdmin,
+      user.expertStatus ?? undefined,
+    );
 
     await this.prisma.session.update({
       where: { id: session.id },
@@ -148,6 +183,9 @@ export class AuthService {
         userId: string;
         email: string;
         sessionId: string;
+        role: UserRole;
+        isAdmin: boolean;
+        expertStatus?: ExpertStatus;
       }>(oldRefreshToken, {
         secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
       });
@@ -177,6 +215,9 @@ export class AuthService {
         payload.userId,
         payload.email,
         session.id,
+        payload.role,
+        payload.isAdmin,
+        payload.expertStatus,
       );
 
       await this.prisma.session.update({
@@ -233,4 +274,46 @@ export class AuthService {
     await this.prisma.session.delete({ where: { id: sessionId } });
     await this.redisService.del(this.profileCacheKey(userId));
   }
-}
+
+  // ─── Expert Registration ───────────────────────────────────────────────────
+
+  async registerExpert(
+    dto: RegisterExpertDto,
+    credentialUrl?: string,
+  ) {
+    const existing = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+    });
+
+    if (existing) {
+      throw new ConflictException('Email already in use.');
+    }
+
+    if (!dto.password) {
+      throw new BadRequestException('Password is required');
+    }
+
+    const hashedPassword = await bcrypt.hash(dto.password, 10);
+
+    const user = await this.prisma.user.create({
+      data: {
+        email: dto.email,
+        password: hashedPassword,
+        name: dto.name,
+        role: dto.role,
+        specialization: dto.specialization,
+        externalLink: dto.externalLink,
+        credentialUrl,
+        expertStatus: ExpertStatus.PENDING_APPROVAL,
+      },
+    });
+
+    const { password, credentialUrl: _cred, ...safeUser } = user;
+
+    return {
+      message:
+        'Expert account created. Your credentials are under review. You will be notified once approved.',
+      user: safeUser,
+    };
+  }
+}

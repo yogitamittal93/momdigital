@@ -4,40 +4,58 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
-  id            String    @id @default(uuid())
-  email         String    @unique
-  password      String?
-  name          String
-  dueDate       DateTime?
-  babyBirthDate DateTime?
-  tokenVersion  Int       @default(0)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  accounts      Account[]
-  sessions      Session[]
-  scanReports   ScanReport[]
+  id                String             @id @default(uuid())
+  email             String             @unique
+  password          String?
+  name              String
+  dueDate           DateTime?
+  babyBirthDate     DateTime?
+  tokenVersion      Int                @default(0)
+  role              UserRole           @default(MOTHER)
+  expertStatus      ExpertStatus?
+  isAdmin           Boolean            @default(false)
+  specialization    String?
+  externalLink      String?
+  avatarUrl         String?
+  credentialUrl     String?
+  contributionCount Int                @default(0)
+  isFeatured        Boolean            @default(false)
+  featuredAt        DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  accounts          Account[]
+  contentRequests   ContentRequest[]   @relation("MotherRequests")
+  expertAssignments ExpertAssignment[] @relation("ExpertAssignments")
+  piiAuditLogs      PiiAuditLog[]
+  scanReports       ScanReport[]
+  sessions          Session[]
+  trainerContents   TrainerContent[]   @relation("TrainerPosts")
 
+  @@index([role, isFeatured])
+  @@index([expertStatus])
   @@map("users")
 }
 
 model ScanReport {
-  id           String   @id @default(uuid())
-  userId       String
-  originalName String
-  storedName   String   @unique
-  mimeType     String
-  sizeBytes    Int
-  checksum     String
-  category     String?
-  notes        String?
-  capturedAt   DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  shares       ScanReportShare[]
+  id              String            @id @default(uuid())
+  userId          String
+  originalName    String
+  storedName      String            @unique
+  mimeType        String
+  sizeBytes       Int
+  checksum        String
+  category        String?
+  notes           String?
+  capturedAt      DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  contentRequests ContentRequest[]
+  shares          ScanReportShare[]
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
   @@map("scan_reports")
@@ -88,4 +106,120 @@ model Account {
   @@unique([provider, providerAccountId])
   @@index([userId])
   @@map("accounts")
+}
+
+model ContentRequest {
+  id           String             @id @default(uuid())
+  requestType  ContentRequestType
+  uploadedById String
+  scanReportId String?
+  questionText String?
+  /// JSON blob: { allergyInfo?, pregnancyWeek?, babyAgeMonths?, ... }
+  context      Json?
+  mlResponse   String?
+  mlConfidence Float?
+  status       ReviewStatus       @default(PENDING)
+  /// Derived roles this request was routed to (stored for audit)
+  routedRoles  UserRole[]
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  scanReport   ScanReport?        @relation(fields: [scanReportId], references: [id])
+  uploadedBy   User               @relation("MotherRequests", fields: [uploadedById], references: [id], onDelete: Cascade)
+  assignments  ExpertAssignment[]
+
+  @@index([uploadedById, createdAt])
+  @@index([status, requestType])
+  @@map("content_requests")
+}
+
+model ExpertAssignment {
+  id         String         @id @default(uuid())
+  requestId  String
+  expertId   String
+  status     ReviewStatus   @default(PENDING)
+  expertNote String?
+  piViewedAt DateTime?
+  reviewedAt DateTime?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  expert     User           @relation("ExpertAssignments", fields: [expertId], references: [id], onDelete: Cascade)
+  request    ContentRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, expertId])
+  @@index([expertId, status])
+  @@map("expert_assignments")
+}
+
+model TrainerContent {
+  id          String    @id @default(uuid())
+  authorId    String
+  title       String
+  body        String
+  targetGroup String?
+  mediaUrl    String?
+  isPublished Boolean   @default(false)
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  author      User      @relation("TrainerPosts", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([authorId, isPublished])
+  @@index([isPublished, publishedAt])
+  @@map("trainer_content")
+}
+
+model PiiAuditLog {
+  id        String   @id @default(uuid())
+  expertId  String
+  requestId String
+  viewedAt  DateTime @default(now())
+  expert    User     @relation(fields: [expertId], references: [id], onDelete: Cascade)
+
+  @@index([expertId])
+  @@index([requestId])
+  @@map("pii_audit_logs")
+}
+
+/// Configurable key-value store for runtime settings.
+/// Cached in Redis; env vars used as fallback.
+/// Seed keys: FEATURED_REVIEW_QUOTA (default 40), FEATURED_CONTENT_QUOTA (default 5)
+model AppConfig {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("app_config")
+}
+
+enum UserRole {
+  MOTHER
+  MBBS
+  AYURVEDA
+  NUTRITIONIST
+  CHEF
+  YOGA_TRAINER
+  WORKOUT_TRAINER
+}
+
+enum ExpertStatus {
+  PENDING_APPROVAL
+  APPROVED
+  SUSPENDED
+}
+
+enum ContentRequestType {
+  MEDICAL_SCAN
+  DIETARY_QUERY
+  RECIPE_REVIEW
+  EXERCISE_QUERY
+  CROSS_DISCIPLINE
+  GENERAL_QUESTION
+}
+
+enum ReviewStatus {
+  PENDING
+  ML_REVIEWED
+  APPROVED
+  FLAGGED
+  NEEDS_MORE_INFO
 }

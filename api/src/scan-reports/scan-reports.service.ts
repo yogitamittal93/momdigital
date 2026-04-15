@@ -11,6 +11,8 @@ import { mkdir, readFile, unlink, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { UploadScanReportDto } from './dto/upload-scan-report.dto';
 import { ShareScanReportDto } from './dto/share-scan-report.dto';
+import { ContentRequestsService } from 'src/content-requests/content-requests.service';
+import { ContentRequestType } from '@prisma/client';
 
 const ALLOWED_MIME_TYPES = new Set([
   'application/pdf',
@@ -24,6 +26,7 @@ export class ScanReportsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
+    private readonly contentRequests: ContentRequestsService,
   ) {}
 
   private getUploadDir() {
@@ -78,7 +81,7 @@ export class ScanReportsService {
 
     await writeFile(destination, file.buffer);
 
-    return this.prisma.scanReport.create({
+    const report = await this.prisma.scanReport.create({
       data: {
         userId,
         originalName: file.originalname,
@@ -101,6 +104,16 @@ export class ScanReportsService {
         createdAt: true,
       },
     });
+
+    // Auto-route scan for expert review
+    await this.contentRequests.submit(userId, {
+      requestType: ContentRequestType.MEDICAL_SCAN,
+      scanReportId: report.id,
+    }).catch(() => {
+      // Non-blocking: don't fail the upload if routing fails
+    });
+
+    return report;
   }
 
   async listForUser(userId: string) {

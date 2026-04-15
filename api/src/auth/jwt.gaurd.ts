@@ -6,6 +6,16 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { ExpertStatus, UserRole } from '@prisma/client';
+
+export interface JwtPayload {
+  userId: string;
+  email: string;
+  sessionId: string;
+  role: UserRole;
+  isAdmin: boolean;
+  expertStatus?: ExpertStatus;
+}
 
 @Injectable()
 export class JwtGuard implements CanActivate {
@@ -24,7 +34,7 @@ export class JwtGuard implements CanActivate {
     }
 
     try {
-      const decoded = this.jwtService.verify(token, {
+      const decoded = this.jwtService.verify<JwtPayload>(token, {
         secret: this.configService.getOrThrow<string>('JWT_ACCESS_SECRET'),
       });
 

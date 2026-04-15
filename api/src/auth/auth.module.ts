@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
@@ -7,6 +7,7 @@ import { PrismaModule } from 'prisma/prisma.module';
 import { JwtGuard } from './jwt.gaurd';
 import { RedisService } from 'src/common/redis.service';
 
+@Global()
 @Module({
   imports: [
     ConfigModule,
@@ -20,6 +21,6 @@ import { RedisService } from 'src/common/redis.service';
   ],
   providers: [AuthService, JwtGuard, RedisService],
   controllers: [AuthController],
-  exports: [AuthService],
+  exports: [AuthService, JwtGuard, JwtModule],
 })
 export class AuthModule {}

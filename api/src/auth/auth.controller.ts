@@ -4,25 +4,37 @@ import {
   Get,
   Param,
   Post,
+  Patch,
   Delete,
   Req,
   Res,
   HttpCode,
   HttpStatus,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
+import { RegisterExpertDto } from './dto/register-expert.dto';
 import { LoginDto } from './dto/login.dto';
 import type { Response, Request } from 'express';
 import { UseGuards } from '@nestjs/common';
 import { JwtGuard } from './jwt.gaurd';
+import { AdminGuard } from 'src/common/guards/admin.guard';
+import { ExpertStatus } from '@prisma/client';
+import { PrismaService } from 'prisma/prisma.service';
+import { mkdir, writeFile } from 'fs/promises';
+import { join } from 'path';
+import { randomUUID } from 'crypto';
 
 @Controller('auth')
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly configService: ConfigService,
+    private readonly prisma: PrismaService,
   ) {}
 
   private getCookieOptions(maxAge: number) {
@@ -138,4 +150,55 @@ export class AuthController {
     this.clearSessionCookies(res);
     return { message: 'Logged out from all devices' };
   }
-}
+
+  // ─── Expert Registration ──────────────────────────────────────────────────
+
+  @Post('register-expert')
+  @UseInterceptors(
+    FileInterceptor('credential', {
+      limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB max for credential docs
+    }),
+  )
+  async registerExpert(
+    @Body() dto: RegisterExpertDto,
+    @UploadedFile() credential?: Express.Multer.File,
+  ) {
+    let credentialUrl: string | undefined;
+
+    if (credential) {
+      const uploadDir =
+        this.configService.get<string>('CREDENTIAL_UPLOAD_DIR') ??
+        'uploads/credentials';
+      await mkdir(uploadDir, { recursive: true });
+      const filename = `${randomUUID()}-${credential.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      await writeFile(join(uploadDir, filename), credential.buffer);
+      credentialUrl = `${uploadDir}/${filename}`;
+    }
+
+    return this.authService.registerExpert(dto, credentialUrl);
+  }
+
+  // ─── Admin: Expert Approval ───────────────────────────────────────────────
+
+  @Patch('admin/experts/:expertId/approve')
+  @UseGuards(JwtGuard, AdminGuard)
+  @HttpCode(HttpStatus.OK)
+  async approveExpert(@Param('expertId') expertId: string) {
+    await this.prisma.user.update({
+      where: { id: expertId },
+      data: { expertStatus: ExpertStatus.APPROVED },
+    });
+    return { message: 'Expert approved successfully.' };
+  }
+
+  @Patch('admin/experts/:expertId/suspend')
+  @UseGuards(JwtGuard, AdminGuard)
+  @HttpCode(HttpStatus.OK)
+  async suspendExpert(@Param('expertId') expertId: string) {
+    await this.prisma.user.update({
+      where: { id: expertId },
+      data: { expertStatus: ExpertStatus.SUSPENDED },
+    });
+    return { message: 'Expert suspended.' };
+  }
+}
