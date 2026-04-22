@@ -19,11 +19,16 @@ services:
       context: ./api
     container_name: mom-api
     ports:
-      - "3000:3000"
+      - "3001:3001"  # must match PORT env var below
     environment:
-      # Use "db" (service name) instead of localhost inside Docker
+      NODE_ENV: production
+      PORT: "3001"
+      # Use the "db" service name — not localhost — inside Docker network
       DATABASE_URL: "postgresql://mom_user:mom_password@db:5432/mom_digital?schema=public"
-      JWT_SECRET: "your_super_secret_mom_key"
+      JWT_ACCESS_SECRET: "change-me-in-production"
+      JWT_REFRESH_SECRET: "change-me-in-production-refresh"
+      CLIENT_URL: "http://localhost:3000"
+      CLIENT_URLS: "http://localhost:3000"
     depends_on:
       - db
     volumes:
@@ -36,9 +41,10 @@ services:
       context: ./web
     container_name: mom-web
     ports:
-      - "3001:3000" # Access Next.js on localhost:3001
+      - "3000:3000"  # Next.js on localhost:3000
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:3000
+      # Use the "api" Docker service name — not localhost — for server-side fetches
+      - NEXT_PUBLIC_API_URL=http://api:3001/api
     depends_on:
       - api
     volumes:

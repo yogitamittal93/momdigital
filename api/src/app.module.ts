@@ -9,6 +9,7 @@ import { RoutingModule } from './routing/routing.module';
 import { ContentRequestsModule } from './content-requests/content-requests.module';
 import { TrainerContentModule } from './trainer-content/trainer-content.module';
 import { ExpertsModule } from './experts/experts.module';
+import { PostsModule } from './posts/posts.module';
 
 @Module({
   imports: [
@@ -20,9 +21,11 @@ import { ExpertsModule } from './experts/experts.module';
     ContentRequestsModule,
     TrainerContentModule,
     ExpertsModule,
+    PostsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
 export class AppModule {}
+
 

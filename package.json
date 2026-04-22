@@ -1,0 +1,30 @@
+{
+  "name": "momdigital",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MomDigital monorepo — Next.js frontend + NestJS API",
+  "workspaces": [
+    "web",
+    "api"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w web",
+    "dev:api": "npm run start:dev -w api",
+    "dev:all": "concurrently \"npm run dev:api\" \"npm run dev\"",
+    "build": "npm run build --workspaces --if-present",
+    "build:api": "npm run build -w api",
+    "build:web": "npm run build -w web",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test -w api",
+    "test:e2e": "playwright test",
+    "format": "npm run format --workspaces --if-present"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.44.0",
+    "concurrently": "^9.1.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}

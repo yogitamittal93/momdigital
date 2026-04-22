@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useCallback } from "react";
 import { Heart, Activity, TrendingUp, Plus } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,13 +11,25 @@ import AppShell from "@/components/layout/app-shell";
 
 export default function PregnancyTracker() {
   const weekNumber = 24;
-  const kicksToday = 12;
   const kickGoal = 10;
+
+  const [kicks, setKicks] = useState(12);
+  const [logging, setLogging] = useState(false);
+  const [lastKickTime, setLastKickTime] = useState<string | null>(null);
+
   const milestones = [
     { week: 20, title: "Anatomy Scan", completed: true, date: "Feb 15, 2026" },
     { week: 24, title: "Glucose Test", completed: false, date: "Mar 28, 2026" },
     { week: 28, title: "Third Trimester Begins", completed: false, date: "Apr 18, 2026" },
   ];
+
+  const handleLogKick = useCallback(() => {
+    setLogging(true);
+    setKicks((k) => k + 1);
+    setLastKickTime(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+    // Simulate brief haptic feedback delay
+    setTimeout(() => setLogging(false), 600);
+  }, []);
 
   return (
     <AppShell>
@@ -33,7 +46,7 @@ export default function PregnancyTracker() {
             <div className="flex items-start gap-4 mb-4">
               <div className="w-24 h-24 rounded-2xl overflow-hidden bg-primary/10 flex-shrink-0">
                 <ImageWithFallback
-                  src="https://images.unsplash.com/photo-1643618511639-d3f8eba7f486?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxiYWJ5JTIwc2xlZXBpbmclMjBwZWFjZWZ1bGx5fGVufDF8fHx8MTc3NDI5MjkzNnww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral"
+                  src="https://images.unsplash.com/photo-1643618511639-d3f8eba7f486?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"
                   alt="Baby Development"
                   className="w-full h-full object-cover"
                 />
@@ -41,10 +54,14 @@ export default function PregnancyTracker() {
               <div className="flex-1">
                 <h2 className="mb-2">Your Baby This Week</h2>
                 <p className="text-sm text-muted-foreground">About the size of a corn 🌽</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Your baby can now hear sounds and may respond to your voice!
+                </p>
               </div>
             </div>
           </Card>
 
+          {/* ── Kick Counter — Interactive ── */}
           <Card className="rounded-3xl border-none shadow-lg p-6 mb-6">
             <div className="flex items-center justify-between mb-4">
               <h3>Kick Counter</h3>
@@ -52,14 +69,30 @@ export default function PregnancyTracker() {
             </div>
             <div className="mb-4">
               <div className="flex items-end gap-2 mb-2">
-                <span className="text-4xl text-primary">{kicksToday}</span>
+                <span
+                  className="text-4xl text-primary transition-all duration-300"
+                  style={{ transform: logging ? "scale(1.3)" : "scale(1)" }}
+                >
+                  {kicks}
+                </span>
                 <span className="text-muted-foreground mb-2">/ {kickGoal} kicks today</span>
               </div>
-              <Progress value={(kicksToday / kickGoal) * 100} className="h-3" />
+              <Progress value={Math.min((kicks / kickGoal) * 100, 100)} className="h-3 mb-2" />
+              {kicks >= kickGoal && (
+                <p className="text-xs text-primary font-medium">🎉 Daily goal reached!</p>
+              )}
+              {lastKickTime && (
+                <p className="text-xs text-muted-foreground mt-1">Last kick at {lastKickTime}</p>
+              )}
             </div>
-            <Button className="w-full rounded-full bg-primary hover:bg-primary/90 gap-2">
+            <Button
+              id="log-kick-btn"
+              className="w-full rounded-full bg-primary hover:bg-primary/90 gap-2 active:scale-95 transition-transform"
+              onClick={handleLogKick}
+              disabled={logging}
+            >
               <Plus className="w-4 h-4" />
-              Log a Kick
+              {logging ? "Logged! ✓" : "Log a Kick"}
             </Button>
           </Card>
 
@@ -68,12 +101,26 @@ export default function PregnancyTracker() {
             <div className="space-y-4">
               {milestones.map((milestone, index) => (
                 <div key={index} className="flex items-start gap-4">
-                  <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-                    {milestone.completed ? <Activity className="w-5 h-5" /> : <span>{milestone.week}</span>}
+                  <div
+                    className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                      milestone.completed
+                        ? "bg-primary/20 text-primary"
+                        : "bg-muted border-2 border-muted-foreground/30"
+                    }`}
+                  >
+                    {milestone.completed ? (
+                      <Activity className="w-5 h-5" />
+                    ) : (
+                      <span className="text-xs font-bold">{milestone.week}</span>
+                    )}
                   </div>
                   <div className="flex-1">
-                    <p>{milestone.title}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Week {milestone.week} • {milestone.date}</p>
+                    <p className={milestone.completed ? "line-through text-muted-foreground" : ""}>
+                      {milestone.title}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Week {milestone.week} • {milestone.date}
+                    </p>
                   </div>
                 </div>
               ))}
@@ -92,8 +139,41 @@ export default function PregnancyTracker() {
                   <h3>Weight Tracking</h3>
                   <TrendingUp className="w-5 h-5 text-accent" />
                 </div>
-                <div className="h-32 bg-gradient-to-t from-primary/10 to-transparent rounded-2xl flex items-end p-4">
-                  <p className="text-xs text-muted-foreground">Chart visualization placeholder</p>
+                <div className="space-y-2">
+                  {[
+                    { week: 20, weight: "132 lbs" },
+                    { week: 22, weight: "134 lbs" },
+                    { week: 24, weight: "136 lbs" },
+                  ].map((entry) => (
+                    <div
+                      key={entry.week}
+                      className="flex justify-between text-sm px-3 py-2 rounded-xl bg-muted/30"
+                    >
+                      <span className="text-muted-foreground">Week {entry.week}</span>
+                      <span className="font-medium">{entry.weight}</span>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </TabsContent>
+            <TabsContent value="bp" className="mt-4">
+              <Card className="rounded-3xl border-none shadow-lg p-6">
+                <h3 className="mb-3">Blood Pressure Log</h3>
+                <p className="text-sm text-muted-foreground">Last reading: 118/76 mmHg — Normal ✓</p>
+              </Card>
+            </TabsContent>
+            <TabsContent value="mood" className="mt-4">
+              <Card className="rounded-3xl border-none shadow-lg p-6">
+                <h3 className="mb-3">Mood Tracker</h3>
+                <div className="flex gap-3 flex-wrap">
+                  {["😊 Happy", "😌 Calm", "😴 Tired", "🤢 Nauseous"].map((mood) => (
+                    <button
+                      key={mood}
+                      className="px-4 py-2 rounded-full bg-muted/40 text-sm hover:bg-primary/20 hover:text-primary transition-colors"
+                    >
+                      {mood}
+                    </button>
+                  ))}
                 </div>
               </Card>
             </TabsContent>
