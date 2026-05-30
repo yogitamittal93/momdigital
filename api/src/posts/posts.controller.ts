@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Delete,
   Body,
   Param,
   Query,
@@ -14,15 +15,18 @@ import {
 } from '@nestjs/common';
 import { PostsService } from './posts.service';
 import { CreatePostDto } from './dto/create-post.dto';
+import { CreateCommentDto } from './dto/create-comment.dto';
 import { JwtGuard } from 'src/auth/jwt.gaurd';
 
 @Controller('posts')
+@UseGuards(JwtGuard)
 export class PostsController {
   constructor(private readonly postsService: PostsService) {}
 
-  /** GET /api/posts?page=1&limit=20  — public feed */
+  // ── Posts ─────────────────────────────────────────────────────────────────
+
+  /** GET /api/posts?page=1&limit=20 */
   @Get()
-  @UseGuards(JwtGuard)
   findAll(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
@@ -32,24 +36,47 @@ export class PostsController {
 
   /** GET /api/posts/:id */
   @Get(':id')
-  @UseGuards(JwtGuard)
   findOne(@Param('id') id: string) {
     return this.postsService.findOne(id);
   }
 
   /** POST /api/posts */
   @Post()
-  @UseGuards(JwtGuard)
   @HttpCode(HttpStatus.CREATED)
   create(@Req() req: any, @Body() dto: CreatePostDto) {
     return this.postsService.create(req.user.userId, dto);
   }
 
-  /** POST /api/posts/:id/like  — toggle like */
+  /** POST /api/posts/:id/like — toggle */
   @Post(':id/like')
-  @UseGuards(JwtGuard)
   @HttpCode(HttpStatus.OK)
   like(@Param('id') id: string, @Req() req: any) {
     return this.postsService.toggleLike(id, req.user.userId);
+  }
+
+  // ── Comments ──────────────────────────────────────────────────────────────
+
+  /** GET /api/posts/:id/comments */
+  @Get(':id/comments')
+  listComments(@Param('id') postId: string) {
+    return this.postsService.listComments(postId);
+  }
+
+  /** POST /api/posts/:id/comments */
+  @Post(':id/comments')
+  @HttpCode(HttpStatus.CREATED)
+  addComment(
+    @Param('id') postId: string,
+    @Req() req: any,
+    @Body() dto: CreateCommentDto,
+  ) {
+    return this.postsService.createComment(postId, req.user.userId, dto.content);
+  }
+
+  /** DELETE /api/posts/:postId/comments/:commentId */
+  @Delete(':postId/comments/:commentId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  deleteComment(@Param('commentId') commentId: string, @Req() req: any) {
+    return this.postsService.deleteComment(commentId, req.user.userId);
   }
 }

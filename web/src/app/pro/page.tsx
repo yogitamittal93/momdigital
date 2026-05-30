@@ -8,7 +8,9 @@ import {
   ChevronDown, ChevronUp, RefreshCw, Lock, Unlock,
 } from "lucide-react";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "";
+import { getApiBase } from "@/lib/api-url";
+
+const API = getApiBase();
 
 interface User {
   id: string; name: string; role: string;

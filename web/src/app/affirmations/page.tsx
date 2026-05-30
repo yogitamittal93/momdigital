@@ -1,34 +1,55 @@
 "use client";
 
 import { ChevronLeft, ChevronRight, Heart, Sparkles, Star } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import AppShell from "@/components/layout/app-shell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ImageWithFallback } from "@/components/figma/ImageWithFallback";
+import { api } from "@/lib/api-client";
+
+const FALLBACK = [
+  {
+    title: "You Are Beautiful",
+    message:
+      "Every stretch mark tells a story of strength. Your body is powerful and deserving of love.",
+    image:
+      "https://images.unsplash.com/photo-1745433207341-a695b14e24da?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+    color: "from-primary/20 to-primary/10",
+  },
+  {
+    title: "You Are Doing Amazing",
+    message:
+      "In sleepless nights and challenges, your love and effort are exactly what your baby needs.",
+    image:
+      "https://images.unsplash.com/photo-1773243086673-66bef34f6969?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+    color: "from-accent/30 to-accent/10",
+  },
+];
 
 export default function AffirmationsPage() {
   const [currentIndex, setCurrentIndex] = useState(0);
-  const affirmations = [
-    {
-      id: 1,
-      title: "You Are Beautiful",
-      message:
-        "Every stretch mark tells a story of strength. Your body is powerful and deserving of love.",
-      image:
-        "https://images.unsplash.com/photo-1745433207341-a695b14e24da?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
-      color: "from-primary/20 to-primary/10",
-    },
-    {
-      id: 2,
-      title: "You Are Doing Amazing",
-      message:
-        "In sleepless nights and challenges, your love and effort are exactly what your baby needs.",
-      image:
-        "https://images.unsplash.com/photo-1773243086673-66bef34f6969?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
-      color: "from-accent/30 to-accent/10",
-    },
-  ];
+  const [affirmations, setAffirmations] = useState(FALLBACK);
+
+  useEffect(() => {
+    api
+      .get("/affirmations/daily")
+      .then((data) => {
+        const d = data as { title?: string; message?: string };
+        if (d?.message) {
+          setAffirmations([
+            {
+              title: d.title || "Today's Affirmation",
+              message: d.message,
+              image: FALLBACK[0].image,
+              color: "from-primary/20 to-primary/10",
+            },
+            ...FALLBACK.slice(1),
+          ]);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const currentAffirmation = affirmations[currentIndex];
 
@@ -43,7 +64,9 @@ export default function AffirmationsPage() {
               </div>
               <div>
                 <h1 className="text-2xl md:text-3xl mb-1">Daily Affirmations</h1>
-                <p className="text-sm text-muted-foreground">Words of love and strength for you</p>
+                <p className="text-sm text-muted-foreground">
+                  Words of love and strength for you
+                </p>
               </div>
             </div>
           </div>
@@ -54,19 +77,26 @@ export default function AffirmationsPage() {
             <div className="flex items-start gap-3">
               <Sparkles className="w-6 h-6 text-primary mt-1" />
               <p className="text-sm text-muted-foreground">
-                Daily affirmations help combat negative self-talk and build postpartum confidence.
+                Daily affirmations help combat negative self-talk and build
+                confidence on your journey.
               </p>
             </div>
           </Card>
 
-          <Card className={`rounded-3xl border-none shadow-2xl overflow-hidden bg-gradient-to-br ${currentAffirmation.color}`}>
+          <Card
+            className={`rounded-3xl border-none shadow-2xl overflow-hidden bg-gradient-to-br ${currentAffirmation.color}`}
+          >
             <div className="relative h-80 md:h-96">
-              <ImageWithFallback src={currentAffirmation.image} alt={currentAffirmation.title} className="w-full h-full object-cover opacity-80" />
+              <ImageWithFallback
+                src={currentAffirmation.image}
+                alt={currentAffirmation.title}
+                className="w-full h-full object-cover opacity-80"
+              />
               <div className="absolute inset-0 bg-gradient-to-t from-card/95 via-card/50 to-transparent" />
               <div className="absolute bottom-0 left-0 right-0 p-6 md:p-8">
                 <div className="flex items-center gap-2 mb-3">
                   <Star className="w-5 h-5 text-primary fill-primary" />
-                  <p className="text-sm text-muted-foreground">Today's Message</p>
+                  <p className="text-sm text-muted-foreground">Today&apos;s Message</p>
                 </div>
                 <h2 className="mb-4">{currentAffirmation.title}</h2>
                 <p className="text-base leading-relaxed">{currentAffirmation.message}</p>
@@ -75,10 +105,26 @@ export default function AffirmationsPage() {
           </Card>
 
           <div className="flex items-center justify-between mt-6">
-            <Button variant="outline" size="icon" className="rounded-full w-12 h-12" onClick={() => setCurrentIndex((p) => (p - 1 + affirmations.length) % affirmations.length)}>
+            <Button
+              variant="outline"
+              size="icon"
+              className="rounded-full w-12 h-12"
+              onClick={() =>
+                setCurrentIndex(
+                  (p) => (p - 1 + affirmations.length) % affirmations.length,
+                )
+              }
+            >
               <ChevronLeft className="w-6 h-6" />
             </Button>
-            <Button variant="outline" size="icon" className="rounded-full w-12 h-12" onClick={() => setCurrentIndex((p) => (p + 1) % affirmations.length)}>
+            <Button
+              variant="outline"
+              size="icon"
+              className="rounded-full w-12 h-12"
+              onClick={() =>
+                setCurrentIndex((p) => (p + 1) % affirmations.length)
+              }
+            >
               <ChevronRight className="w-6 h-6" />
             </Button>
           </div>

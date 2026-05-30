@@ -11,6 +11,7 @@ import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from 'prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { RedisService } from 'src/common/redis.service';
 import { ExpertStatus, UserRole } from '@prisma/client';
 
@@ -316,4 +317,30 @@ export class AuthService {
       user: safeUser,
     };
   }
-}
+
+  async updateProfile(userId: string, dto: UpdateProfileDto) {
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        name: dto.name,
+        dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
+        babyBirthDate: dto.babyBirthDate
+          ? new Date(dto.babyBirthDate)
+          : undefined,
+        avatarUrl: dto.avatarUrl,
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        dueDate: true,
+        babyBirthDate: true,
+        avatarUrl: true,
+        role: true,
+      },
+    });
+
+    await this.redisService.del(this.profileCacheKey(userId));
+    return { user };
+  }
+}

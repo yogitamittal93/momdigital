@@ -10,6 +10,11 @@ import { ContentRequestsModule } from './content-requests/content-requests.modul
 import { TrainerContentModule } from './trainer-content/trainer-content.module';
 import { ExpertsModule } from './experts/experts.module';
 import { PostsModule } from './posts/posts.module';
+import { ChatbotModule } from './chatbot/chatbot.module';
+import { DoctorQueueModule } from './doctor-queue/doctor-queue.module';
+import { NannyModule } from './nanny/nanny.module';
+import { AffirmationsModule } from './affirmations/affirmations.module';
+import { AppointmentsModule } from './appointments/appointments.module';
 
 @Module({
   imports: [
@@ -22,6 +27,11 @@ import { PostsModule } from './posts/posts.module';
     TrainerContentModule,
     ExpertsModule,
     PostsModule,
+    ChatbotModule,
+    DoctorQueueModule,
+    NannyModule,
+    AffirmationsModule,
+    AppointmentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

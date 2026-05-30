@@ -19,6 +19,7 @@ import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { RegisterExpertDto } from './dto/register-expert.dto';
 import { LoginDto } from './dto/login.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import type { Response, Request } from 'express';
 import { UseGuards } from '@nestjs/common';
 import { JwtGuard } from './jwt.gaurd';
@@ -117,6 +118,12 @@ export class AuthController {
     return this.authService.getUserProfile(req.user.userId);
   }
 
+  @Patch('me')
+  @UseGuards(JwtGuard)
+  async updateProfile(@Req() req: any, @Body() dto: UpdateProfileDto) {
+    return this.authService.updateProfile(req.user.userId, dto);
+  }
+
   @Get('sessions')
   @UseGuards(JwtGuard)
   async getSessions(@Req() req: any) {
@@ -201,4 +208,4 @@ export class AuthController {
     });
     return { message: 'Expert suspended.' };
   }
-}
+}

@@ -1,4 +1,6 @@
-const API = process.env.NEXT_PUBLIC_API_URL ?? "";
+import { getApiBase } from "@/lib/api-url";
+
+const API = getApiBase();
 
 export interface FeaturedExpert {
   id: string;

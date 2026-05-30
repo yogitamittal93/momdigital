@@ -4,7 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { Star, ChevronLeft, ChevronRight, ExternalLink, Stethoscope, Salad, Dumbbell, Flame } from "lucide-react";
 import type { FeaturedExpert } from "@/services/experts.service";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "";
+import { getApiBase } from "@/lib/api-url";
+
+const API = getApiBase();
 
 const roleConfig: Record<string, { label: string; color: string; bg: string; Icon: any }> = {
   MBBS:             { label: "MBBS Doctor",     color: "#E57373", bg: "rgba(229,115,115,0.12)", Icon: Stethoscope },

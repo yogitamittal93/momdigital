@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { Heart, Activity, TrendingUp, Plus } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,9 +8,23 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ImageWithFallback } from "@/components/figma/ImageWithFallback";
 import AppShell from "@/components/layout/app-shell";
+import { useUserProfile } from "@/hooks/use-user-profile";
+import {
+  getPregnancyWeek,
+  getDaysUntilDue,
+  formatTrimesterLabel,
+} from "@/lib/pregnancy";
 
 export default function PregnancyTracker() {
-  const weekNumber = 24;
+  const { user } = useUserProfile();
+  const weekNumber = useMemo(() => {
+    if (user?.dueDate) return getPregnancyWeek(user.dueDate);
+    return 24;
+  }, [user?.dueDate]);
+  const daysUntilDue = useMemo(() => {
+    if (user?.dueDate) return getDaysUntilDue(user.dueDate);
+    return 112;
+  }, [user?.dueDate]);
   const kickGoal = 10;
 
   const [kicks, setKicks] = useState(12);
@@ -37,7 +51,10 @@ export default function PregnancyTracker() {
         <div className="bg-gradient-to-br from-primary/20 via-primary/10 to-background px-4 md:px-8 pt-8 pb-8 rounded-b-[3rem]">
           <div className="max-w-4xl mx-auto">
             <h1 className="text-2xl md:text-3xl mb-2">Pregnancy Tracker</h1>
-            <p className="text-muted-foreground">Week {weekNumber} • Second Trimester</p>
+            <p className="text-muted-foreground">
+              Week {weekNumber} • {formatTrimesterLabel(weekNumber)}
+              {user?.dueDate ? ` • ${daysUntilDue} days until due` : ""}
+            </p>
           </div>
         </div>
 

@@ -28,15 +28,19 @@ model User {
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   accounts          Account[]
+  communityPosts    CommunityPost[]    @relation("CommunityPosts")
   contentRequests   ContentRequest[]   @relation("MotherRequests")
   expertAssignments ExpertAssignment[] @relation("ExpertAssignments")
   piiAuditLogs      PiiAuditLog[]
+  postComments      PostComment[]
+  postLikes         PostLike[]
   scanReports       ScanReport[]
   sessions          Session[]
   trainerContents   TrainerContent[]   @relation("TrainerPosts")
-  communityPosts    CommunityPost[]    @relation("CommunityPosts")
-  postLikes         PostLike[]
-  postComments      PostComment[]
+  doctorProfile     DoctorProfile?
+  nannyChecklists   NannyChecklist[]
+  appointments      Appointment[]
+  careerPlan        CareerPlan?
 
   @@index([role, isFeatured])
   @@index([expertStatus])
@@ -128,7 +132,8 @@ model ContentRequest {
   updatedAt    DateTime           @updatedAt
   scanReport   ScanReport?        @relation(fields: [scanReportId], references: [id])
   uploadedBy   User               @relation("MotherRequests", fields: [uploadedById], references: [id], onDelete: Cascade)
-  assignments  ExpertAssignment[]
+  assignments    ExpertAssignment[]
+  doctorReviews  DoctorReview[]
 
   @@index([uploadedById, createdAt])
   @@index([status, requestType])
@@ -194,6 +199,48 @@ model AppConfig {
   @@map("app_config")
 }
 
+/// Community post model — used for the public community feed
+model CommunityPost {
+  id        String        @id @default(uuid())
+  authorId  String        @map("author_id")
+  content   String
+  category  String?
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  author    User          @relation("CommunityPosts", fields: [authorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  comments  PostComment[]
+  likes     PostLike[]
+
+  @@index([authorId, createdAt(sort: Desc)], map: "idx_community_posts_author_created")
+  @@map("community_posts")
+}
+
+model PostLike {
+  id        String        @id @default(uuid())
+  postId    String        @map("post_id")
+  userId    String        @map("user_id")
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  post      CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([postId, userId])
+  @@map("post_likes")
+}
+
+model PostComment {
+  id        String        @id @default(uuid())
+  postId    String        @map("post_id")
+  authorId  String        @map("author_id")
+  content   String
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  author    User          @relation(fields: [authorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  post      CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([postId, createdAt], map: "idx_post_comments_post_created")
+  @@map("post_comments")
+}
+
 enum UserRole {
   MOTHER
   MBBS
@@ -227,44 +274,134 @@ enum ReviewStatus {
   NEEDS_MORE_INFO
 }
 
-/// Community post model — used for the public community feed
-model CommunityPost {
-  id        String     @id @default(uuid())
-  authorId  String     @map("author_id")
-  content   String
-  category  String?
-  createdAt DateTime   @default(now()) @map("created_at")
-  updatedAt DateTime   @updatedAt @map("updated_at")
-  author    User       @relation("CommunityPosts", fields: [authorId], references: [id], onDelete: Cascade)
-  likes     PostLike[]
-  comments  PostComment[]
+model DoctorProfile {
+  id                  String            @id @default(uuid())
+  userId              String            @unique
+  specialization      DoctorSpecialty
+  registrationNo      String?           @unique
+  hospitalAffiliation String?
+  yearsExperience     Int?
+  isAvailable         Boolean           @default(false)
+  reviewsCompleted    Int               @default(0)
+  avgResponseHours    Float?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  user                User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviews             DoctorReview[]
 
-  @@index([authorId, createdAt])
-  @@map("community_posts")
+  @@map("doctor_profiles")
 }
 
-model PostLike {
-  id        String        @id @default(uuid())
-  postId    String        @map("post_id")
-  userId    String        @map("user_id")
-  createdAt DateTime      @default(now()) @map("created_at")
-  post      CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+model DoctorReview {
+  id               String         @id @default(uuid())
+  doctorProfileId  String
+  contentRequestId String
+  originalAnswer   String         @db.Text
+  reviewedAnswer   String?        @db.Text
+  status           ReviewStatus
+  doctorNote       String?
+  reviewedAt       DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  doctorProfile    DoctorProfile  @relation(fields: [doctorProfileId], references: [id], onDelete: Cascade)
+  contentRequest   ContentRequest @relation(fields: [contentRequestId], references: [id], onDelete: Cascade)
 
-  @@unique([postId, userId])
-  @@map("post_likes")
+  @@index([doctorProfileId, status])
+  @@index([status, createdAt])
+  @@map("doctor_reviews")
 }
 
-model PostComment {
-  id        String        @id @default(uuid())
-  postId    String        @map("post_id")
-  authorId  String        @map("author_id")
-  content   String
-  createdAt DateTime      @default(now()) @map("created_at")
-  updatedAt DateTime      @updatedAt @map("updated_at")
-  post      CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
-  author    User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+model ApprovedAnswer {
+  id           String   @id @default(uuid())
+  questionHash String   @unique
+  question     String   @db.Text
+  answer       String   @db.Text
+  approvedBy   String
+  approvedAt   DateTime @default(now())
+  useCount     Int      @default(0)
+  category     String
+  sources      String[]
 
-  @@index([postId, createdAt])
-  @@map("post_comments")
+  @@index([questionHash])
+  @@index([category])
+  @@map("approved_answers")
+}
+
+model NannyChecklist {
+  id        String          @id @default(uuid())
+  userId    String
+  nannyName String?
+  startDate DateTime        @default(now())
+  checks    NannyCheckLog[]
+  createdAt DateTime        @default(now())
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("nanny_checklists")
+}
+
+model NannyCheckLog {
+  id          String         @id @default(uuid())
+  checklistId String
+  checkItem   String
+  dayNumber   Int
+  completed   Boolean        @default(false)
+  note        String?
+  checkedAt   DateTime?
+  createdAt   DateTime       @default(now())
+  checklist   NannyChecklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+
+  @@index([checklistId, dayNumber])
+  @@map("nanny_check_logs")
+}
+
+enum DoctorSpecialty {
+  OBGYN
+  PEDIATRICIAN
+  AYURVEDA_VAIDYA
+  NUTRITIONIST
+  PHYSIOTHERAPIST
+  GENERAL_PHYSICIAN
+}
+
+model Appointment {
+  id          String          @id @default(uuid())
+  userId      String
+  title       String
+  description String?
+  date        DateTime
+  location    String?
+  type        AppointmentType @default(CHECKUP)
+  reminder    Boolean         @default(true)
+  completed   Boolean         @default(false)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+  @@map("appointments")
+}
+
+model CareerPlan {
+  id             String   @id @default(uuid())
+  userId         String   @unique
+  profession     String
+  employer       String?
+  breakStartDate DateTime
+  returnDate     DateTime
+  planItems      Json
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("career_plans")
+}
+
+enum AppointmentType {
+  CHECKUP
+  ULTRASOUND
+  BLOOD_TEST
+  VACCINATION
+  DENTIST
+  OTHER
 }
