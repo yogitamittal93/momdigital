@@ -15,18 +15,18 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
   }
 
   async onModuleInit() {
-    // Retry up to 5 times — handles Neon cold start delay
+    // Retry up to 5 times — handles database cold start or connection delays
     for (let attempt = 1; attempt <= 5; attempt++) {
       try {
         await this.$connect();
-        this.logger.log('✅ Connected to Neon successfully');
+        this.logger.log('✅ Connected to Postgres successfully');
         return;
       } catch (e) {
         this.logger.warn(`Connection attempt ${attempt}/5 failed: ${e.message}`);
         if (attempt === 5) {
           this.logger.error('❌ All connection attempts failed');
         } else {
-          // Wait 3 seconds before retrying — gives Neon time to wake up
+          // Wait 3 seconds before retrying — gives the DB time to respond
           await new Promise(res => setTimeout(res, 3000));
         }
       }

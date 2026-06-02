@@ -1,6 +1,9 @@
+require('dotenv').config();
 const { Client } = require('pg');
 
-const connStr = 'postgresql://neondb_owner:npg_zx8NiypJ9QXu@ep-calm-moon-a4kcl7bo.us-east-1.aws.neon.tech/neondb?sslmode=require';
+const connStr =
+  process.env.DATABASE_URL ||
+  'postgresql://neondb_owner:npg_zx8NiypJ9QXu@ep-calm-moon-a4kcl7bo.us-east-1.aws.neon.tech/neondb?sslmode=require';
 
 const sql = `
   CREATE TABLE IF NOT EXISTS post_comments (

@@ -78,7 +78,7 @@ export class ChatbotService {
         return {
           reply: validation.errorMessage,
           needsConfirmation: true,
-          confidence: 'requires_doctor',
+          confidence: 'auto_safe',   // NOT requires_doctor — this is a clarification, not an emergency
           sources: [],
         };
       }
@@ -104,7 +104,7 @@ export class ChatbotService {
 
       if (!user) throw new NotFoundException('User not found');
 
-      const hasVitals = await this.userHasVitals(userId, extracted);
+      const vitals = await this.userHasVitals(userId, extracted);
 
       const onboardingComplete =
         user.name &&
@@ -113,7 +113,8 @@ export class ChatbotService {
           user.babyBirthDate ||
           extracted.pregnancyWeek ||
           extracted.babyAgeMonths) &&
-        hasVitals;
+        vitals.hasWeight &&
+        vitals.hasHeight;
 
       if (onboardingComplete) {
         const ragResult = await this.getRAGResponse(message, extracted, user);
@@ -274,18 +275,34 @@ export class ChatbotService {
   private async userHasVitals(
     userId: string,
     extracted: Record<string, unknown>,
-  ): Promise<boolean> {
-    if (extracted.weight_value && extracted.height_value) {
-      return true;
-    }
+  ): Promise<{ hasWeight: boolean; hasHeight: boolean }> {
+    // Check current message first
+    const currentWeight = extracted.weight_value as number | null;
+    const currentHeight = extracted.height_value as number | null;
 
-    const last = await this.prisma.contentRequest.findFirst({
+    // Scan ALL past contentRequests for stored weight and height separately
+    // This handles the case where weight was given in turn 1 and height in turn 2
+    const pastRequests = await this.prisma.contentRequest.findMany({
       where: { uploadedById: userId },
       orderBy: { createdAt: 'desc' },
+      take: 20,
+      select: { context: true },
     });
 
-    const ctx = (last?.context as Record<string, unknown>) ?? {};
-    return Boolean(ctx.weight && ctx.height);
+    let storedWeight: number | null = null;
+    let storedHeight: number | null = null;
+
+    for (const req of pastRequests) {
+      const ctx = (req.context as Record<string, unknown>) ?? {};
+      if (!storedWeight && ctx.weight) storedWeight = ctx.weight as number;
+      if (!storedHeight && ctx.height) storedHeight = ctx.height as number;
+      if (storedWeight && storedHeight) break;
+    }
+
+    return {
+      hasWeight: Boolean(currentWeight || storedWeight),
+      hasHeight: Boolean(currentHeight || storedHeight),
+    };
   }
 
   private async saveDataToPrisma(

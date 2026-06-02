@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import { Bell, Heart, LogOut, Moon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -10,9 +11,69 @@ import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { ChatWindow } from "@/components/chat/ChatWindow";
+import { fetchMe, ApiUser } from "@/lib/api-client";
+
+function formatDate(dateString: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(dateString));
+}
+
+function getPregnancyStatus(user: ApiUser | null) {
+  if (!user) return "No pregnancy data available";
+
+  if (user.dueDate) {
+    const due = new Date(user.dueDate);
+    const today = new Date();
+    const diffDays = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    const week = Math.max(0, Math.min(40, 40 - Math.floor(diffDays / 7)));
+    return `Due Date: ${formatDate(user.dueDate)} • Week ${week}`;
+  }
+
+  if (user.babyBirthDate) {
+    return `Baby born ${formatDate(user.babyBirthDate)}`;
+  }
+
+  return "Please complete your profile to get personalized updates.";
+}
 
 export default function ProfilePage() {
   const router = useRouter();
+  const [profile, setProfile] = useState<ApiUser | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchMe()
+      .then((user) => {
+        if (!user) {
+          router.replace("/login");
+          return;
+        }
+        setProfile(user);
+      })
+      .catch((err) => {
+        console.error("Failed to load profile:", err);
+        setError("Unable to load profile. Please sign in again.");
+        router.replace("/login");
+      })
+      .finally(() => setLoading(false));
+  }, [router]);
+
+  const initials = useMemo(() => {
+    if (!profile?.name) return "MH";
+    return profile.name
+      .split(" ")
+      .map((part) => part[0])
+      .slice(0, 2)
+      .join("")
+      .toUpperCase();
+  }, [profile]);
+
+  const pregnancyText = useMemo(() => getPregnancyStatus(profile), [profile]);
+
   return (
     <AppShell>
       <div className="min-h-screen bg-background pb-8">
@@ -23,15 +84,24 @@ export default function ProfilePage() {
             <Card className="rounded-3xl border-none shadow-lg p-6 -mb-12">
               <div className="flex items-center gap-4">
                 <Avatar className="w-20 h-20">
-                  <AvatarImage src="https://images.unsplash.com/photo-1664312550457-7573b60ee093?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080" alt="profile" />
-                  <AvatarFallback>SJ</AvatarFallback>
+                  {profile?.avatarUrl ? (
+                    <AvatarImage src={profile.avatarUrl} alt={profile.name ?? "profile"} />
+                  ) : null}
+                  <AvatarFallback>{initials}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
-                  <h2>Sarah Johnson</h2>
-                  <p className="text-sm text-muted-foreground">sarah.johnson@email.com</p>
+                  <h2>{loading ? "Loading..." : profile?.name ?? "Your Profile"}</h2>
+                  <p className="text-sm text-muted-foreground">
+                    {loading ? "Loading email..." : profile?.email ?? "No email available"}
+                  </p>
                 </div>
-                <Button variant="outline" size="sm" className="rounded-full">Edit</Button>
+                <Button variant="outline" size="sm" className="rounded-full">
+                  Edit
+                </Button>
               </div>
+              {error ? (
+                <p className="mt-4 text-sm text-destructive">{error}</p>
+              ) : null}
             </Card>
           </div>
         </div>
@@ -41,7 +111,7 @@ export default function ProfilePage() {
               <Heart className="w-6 h-6 text-primary" />
               <h3>Pregnancy Information</h3>
             </div>
-            <p className="text-sm text-muted-foreground">Due Date: July 14, 2026 • Week 24</p>
+            <p className="text-sm text-muted-foreground">{loading ? "Loading pregnancy details..." : pregnancyText}</p>
           </Card>
           <Card className="rounded-3xl border-none shadow-lg p-6 mb-6">
             <div className="flex items-center gap-3 mb-4">
