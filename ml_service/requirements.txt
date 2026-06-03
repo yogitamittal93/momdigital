@@ -1,0 +1,17 @@
+flask
+flask-cors
+spacy
+requests
+pymupdf
+pytesseract
+langchain
+langchain-community
+sentence-transformers
+chromadb
+groq
+pandas
+pyreadstat
+python-dotenv
+pytest
+ddgs
+beautifulsoup4

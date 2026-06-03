@@ -1,0 +1,38 @@
+# --- Monorepo Root Ignores ---
+node_modules/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+
+# --- Docker & Infrastructure ---
+.docker/
+postgres_data/
+docker-compose.override.yml
+
+# --- Backend (NestJS & Prisma) ---
+api/node_modules/
+api/dist/
+api/coverage/
+api/.prisma/
+api/prisma/migrations/*.sql
+# Keep migrations but ignore the sqlite db if you ever use it locally
+api/*.db
+api/*.db-journal
+
+# --- Frontend (Next.js) ---
+web/node_modules/
+web/.next/
+web/out/
+web/build/
+web/.vercel
+web/*.tsbuildinfo
+web/next-env.d.ts
+
+# --- IDE & System ---
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+.eslintcache
