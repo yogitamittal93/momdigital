@@ -34,7 +34,13 @@ ml_service/node_modules/
 ml_service/dist/
 ml_service/data/
 ml_service/.env
-ml_service/.env.*  
+ml_service/.env.*
+ml_service/.pytest_cache/
+ml_service/venv/
+ml_service/__pycache__/
+ml_service/**/*.py[cod]
+ml_service/*.log
+ml_service/matrny_db/
 
 # --- IDE & System ---
 .idea/
