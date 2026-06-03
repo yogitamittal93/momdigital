@@ -1,0 +1,187 @@
+name: Quality Gate & Integration
+
+on:
+  push:
+    branches: [master, main, develop]
+  pull_request:
+    branches: [master, main, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# ─── Environment shared across all jobs ───────────────────────────────────────
+env:
+  NODE_VERSION: '20'
+  API_PORT: '3001'
+  WEB_PORT: '3000'
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # JOB 1: Build & Lint
+  # Uses NPM Workspaces — a single `npm ci` at root installs web + api deps.
+  # ─────────────────────────────────────────────────────────────────────────────
+  validate:
+    name: Build & Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          # cache-dependency-path covers the root lock file which represents
+          # all workspaces (web and api share the root package-lock.json)
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install all workspace dependencies
+        # npm ci at root installs web + api via NPM Workspaces
+        run: npm ci
+
+      - name: Lint — API (NestJS)
+        run: npm run lint -w api
+        continue-on-error: false
+
+      - name: Lint — Web (Next.js)
+        run: npm run lint -w web
+        continue-on-error: false
+
+      - name: Build — API
+        run: npm run build -w api
+        env:
+          NODE_ENV: production
+
+      - name: Build — Web
+        run: npm run build -w web
+        env:
+          NODE_ENV: production
+          NEXT_PUBLIC_API_URL: http://localhost:${{ env.API_PORT }}/api
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-dist
+          path: |
+            api/dist
+            web/.next
+          retention-days: 1
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # JOB 2: Playwright E2E Tests
+  # Starts the NestJS API and Next.js dev server, then runs the smoke suite.
+  # ─────────────────────────────────────────────────────────────────────────────
+  e2e-tests:
+    name: Playwright E2E
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: mom_user
+          POSTGRES_PASSWORD: mom_password
+          POSTGRES_DB: mom_digital_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install all workspace dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers (Chromium only for speed)
+        run: npx playwright install chromium --with-deps
+
+      - name: Run Prisma migrations (test DB)
+        working-directory: api
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: postgresql://mom_user:mom_password@localhost:5432/mom_digital_test?sslmode=disable
+
+      - name: Start API server (background)
+        working-directory: api
+        run: |
+          npm run start:prod &
+          echo "API_PID=$!" >> $GITHUB_ENV
+        env:
+          NODE_ENV: test
+          PORT: ${{ env.API_PORT }}
+          DATABASE_URL: postgresql://mom_user:mom_password@localhost:5432/mom_digital_test?sslmode=disable
+          JWT_ACCESS_SECRET: ${{ secrets.JWT_SECRET || 'ci_access_secret_do_not_use_in_prod' }}
+          JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET || 'ci_refresh_secret_do_not_use_in_prod' }}
+          CLIENT_URL: http://localhost:${{ env.WEB_PORT }}
+          CLIENT_URLS: http://localhost:${{ env.WEB_PORT }}
+          REDIS_URL: ''   # disable Redis in CI (auth service falls back gracefully)
+
+      - name: Wait for API to be ready
+        run: |
+          echo "Waiting for API on port $API_PORT..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:${{ env.API_PORT }}/api/health > /dev/null 2>&1; then
+              echo "API is up!"
+              break
+            fi
+            echo "  attempt $i/30 — waiting 2s..."
+            sleep 2
+          done
+
+      - name: Start Next.js server (background)
+        working-directory: web
+        run: |
+          npm run build
+          npm run start &
+          echo "WEB_PID=$!" >> $GITHUB_ENV
+        env:
+          NODE_ENV: production
+          NEXT_PUBLIC_API_URL: http://localhost:${{ env.API_PORT }}/api
+
+      - name: Wait for Next.js to be ready
+        run: |
+          echo "Waiting for Next.js on port $WEB_PORT..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:${{ env.WEB_PORT }} > /dev/null 2>&1; then
+              echo "Next.js is up!"
+              break
+            fi
+            echo "  attempt $i/30 — waiting 2s..."
+            sleep 2
+          done
+
+      - name: Run Playwright smoke tests
+        run: npx playwright test tests/e2e/smoke.spec.ts --reporter=list,junit
+        env:
+          BASE_URL: http://localhost:${{ env.WEB_PORT }}
+          BASE_API_URL: http://localhost:${{ env.API_PORT }}/api
+          CI: 'true'
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+      - name: Upload test results (JUnit)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: playwright-report/results.xml
+          retention-days: 7

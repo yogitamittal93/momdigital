@@ -1,0 +1,138 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// USER — core identity + pregnancy/postpartum profile
+// ─────────────────────────────────────────────
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  password      String?
+
+  // Display
+  name          String
+  profileImage  String?   // URL to uploaded avatar
+
+  // Pregnancy / postpartum phase
+  dueDate         DateTime?
+  babyBirthDate   DateTime?
+  babyName        String?
+  deliveryType    String?   // "vaginal" | "cesarean" — affects recovery exercises
+
+  // Onboarding completion flag
+  onboardingDone  Boolean   @default(false)
+
+  // Relations
+  exerciseLogs        ExerciseLog[]
+  feedingLogs         FeedingLog[]
+  trustedHelperChecks TrustedHelperCheck[]
+  appointments        Appointment[]
+  chatMessages        ChatMessage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+// ─────────────────────────────────────────────
+// CHAT — maternity assistant messages
+// ─────────────────────────────────────────────
+model ChatMessage {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  role      String   // "user" | "assistant"
+  content   String
+
+  // Structured data extracted from this message (if any)
+  // e.g. { "babyBirthDate": "2025-03-01", "deliveryType": "cesarean" }
+  extractedData Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("chat_messages")
+}
+
+// ─────────────────────────────────────────────
+// EXERCISE LOG — body recovery tracking
+// ─────────────────────────────────────────────
+model ExerciseLog {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  exerciseId  String   // e.g. "15min-walk", "pelvic-floor", "kegel"
+  phase       String   // "pregnancy" | "postpartum"
+  durationMins Int?
+  completedAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("exercise_logs")
+}
+
+// ─────────────────────────────────────────────
+// FEEDING LOG — childcare tracking
+// ─────────────────────────────────────────────
+model FeedingLog {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type      String   // "breast-left" | "breast-right" | "bottle" | "formula"
+  startedAt DateTime
+  durationMins Int?
+  amountMl  Int?
+  notes     String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("feeding_logs")
+}
+
+// ─────────────────────────────────────────────
+// TRUSTED HELPER CHECK — nanny / chef scoring
+// ─────────────────────────────────────────────
+model TrustedHelperCheck {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  helperType  String   // "nanny" | "chef"
+  checks      Json     // { handWashing: true, hairTied: false, ... }
+  score       Int      // 0–100
+  checkedAt   DateTime @default(now())
+
+  @@index([userId])
+  @@map("trusted_helper_checks")
+}
+
+// ─────────────────────────────────────────────
+// APPOINTMENT — doctor / clinic bookings
+// ─────────────────────────────────────────────
+model Appointment {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title       String
+  doctorName  String?
+  location    String?
+  dateTime    DateTime
+  notes       String?
+  reminded    Boolean  @default(false)
+
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@map("appointments")
+}

@@ -1,0 +1,26 @@
+/// Community posts model — added for community feed
+model CommunityPost {
+  id        String   @id @default(uuid())
+  authorId  String
+  content   String
+  category  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  author    User     @relation("CommunityPosts", fields: [authorId], references: [id], onDelete: Cascade)
+  likes     PostLike[]
+
+  @@index([authorId, createdAt])
+  @@map("community_posts")
+}
+
+model PostLike {
+  id        String        @id @default(uuid())
+  postId    String
+  userId    String
+  createdAt DateTime      @default(now())
+  post      CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@map("post_likes")
+}
+

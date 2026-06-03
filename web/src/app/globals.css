@@ -1,0 +1,83 @@
+@import "tailwindcss";
+
+/* 1. PLUGINS & FONTS 
+@plugin "tw-animate-css";
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Quicksand:wght@400;500;600;700&display=swap');
+*/
+/* 2. DESIGN TOKENS (Direct Figma Sync) */
+:root {
+  --font-sans: var(--font-sans);
+  --font-display: var(--font-display);
+  --font-size: 16px;
+  --background: #FFF9F5;
+  --foreground: #4A4A4A;
+  --primary: #FF9F89;   /* Figma Peach */
+  --secondary: #D4B5E8; /* Figma Lavender */
+  --accent: #B8E6C9;    /* Figma Mint */
+  --radius: 1.25rem;
+  --border: #E5E7EB;    /* Default border color */
+}
+
+.dark {
+  --background: #2A2A2A;
+  --foreground: #F5F5F5;
+  --border: #3F3F3F;
+}
+
+/* 3. TAILWIND 4 THEME ENGINE */
+@theme {
+  /* Mapping variables to Tailwind utility classes */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-secondary: var(--secondary);
+  --color-accent: var(--accent);
+  --color-border: var(--border);
+  
+  --radius-mom: var(--radius);
+
+  /* Font mapping */
+  --font-sans: "Inter", ui-sans-serif, system-ui;
+  --font-display: "Quicksand", sans-serif;
+}
+
+/* 4. BASE STYLES & GLOBAL UI */
+@layer base {
+  *, ::after, ::before {
+    border-color: var(--color-border);
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, h4, .font-display {
+    font-family: var(--font-display);
+    font-weight: 700;
+  }
+
+  /* Custom MomDigital Scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #FFB4A1;
+    border-radius: 20px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+/* 5. CUSTOM UTILITIES (Optional) */
+@utility container-mom {
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
