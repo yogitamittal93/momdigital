@@ -3,406 +3,136 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
+// ─────────────────────────────────────────────
+// USER — core identity + pregnancy/postpartum profile
+// ─────────────────────────────────────────────
 model User {
-  id                String             @id @default(uuid())
-  email             String             @unique
-  password          String?
-  name              String
-  dueDate           DateTime?
-  babyBirthDate     DateTime?
-  tokenVersion      Int                @default(0)
-  role              UserRole           @default(MOTHER)
-  expertStatus      ExpertStatus?
-  isAdmin           Boolean            @default(false)
-  specialization    String?
-  externalLink      String?
-  avatarUrl         String?
-  credentialUrl     String?
-  contributionCount Int                @default(0)
-  isFeatured        Boolean            @default(false)
-  featuredAt        DateTime?
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  accounts          Account[]
-  communityPosts    CommunityPost[]    @relation("CommunityPosts")
-  contentRequests   ContentRequest[]   @relation("MotherRequests")
-  expertAssignments ExpertAssignment[] @relation("ExpertAssignments")
-  piiAuditLogs      PiiAuditLog[]
-  postComments      PostComment[]
-  postLikes         PostLike[]
-  scanReports       ScanReport[]
-  sessions          Session[]
-  trainerContents   TrainerContent[]   @relation("TrainerPosts")
-  doctorProfile     DoctorProfile?
-  nannyChecklists   NannyChecklist[]
-  appointments      Appointment[]
-  careerPlan        CareerPlan?
+  id            String    @id @default(uuid())
+  email         String    @unique
+  password      String?
 
-  @@index([role, isFeatured])
-  @@index([expertStatus])
+  // Display
+  name          String
+  profileImage  String?   // URL to uploaded avatar
+
+  // Pregnancy / postpartum phase
+  dueDate         DateTime?
+  babyBirthDate   DateTime?
+  babyName        String?
+  deliveryType    String?   // "vaginal" | "cesarean" — affects recovery exercises
+
+  // Onboarding completion flag
+  onboardingDone  Boolean   @default(false)
+
+  // Relations
+  exerciseLogs        ExerciseLog[]
+  feedingLogs         FeedingLog[]
+  trustedHelperChecks TrustedHelperCheck[]
+  appointments        Appointment[]
+  chatMessages        ChatMessage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@map("users")
 }
 
-model ScanReport {
-  id              String            @id @default(uuid())
-  userId          String
-  originalName    String
-  storedName      String            @unique
-  mimeType        String
-  sizeBytes       Int
-  checksum        String
-  category        String?
-  notes           String?
-  capturedAt      DateTime?
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  contentRequests ContentRequest[]
-  shares          ScanReportShare[]
-  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, createdAt])
-  @@map("scan_reports")
-}
-
-model ScanReportShare {
-  id          String     @id @default(uuid())
-  reportId    String
-  targetEmail String
-  permission  String     @default("view")
-  expiresAt   DateTime?
-  revokedAt   DateTime?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  report      ScanReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
-
-  @@index([reportId, targetEmail])
-  @@map("scan_report_shares")
-}
-
-model Session {
-  id           String    @id @default(uuid())
-  userId       String
-  refreshToken String
-  userAgent    String?
-  ipAddress    String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  expiresAt    DateTime?
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@map("sessions")
-}
-
-model Account {
-  id                String   @id @default(uuid())
-  userId            String
-  provider          String
-  providerAccountId String
-  accessToken       String?
-  refreshToken      String?
-  idToken           String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([provider, providerAccountId])
-  @@index([userId])
-  @@map("accounts")
-}
-
-model ContentRequest {
-  id           String             @id @default(uuid())
-  requestType  ContentRequestType
-  uploadedById String
-  scanReportId String?
-  questionText String?
-  /// JSON blob: { allergyInfo?, pregnancyWeek?, babyAgeMonths?, ... }
-  context      Json?
-  mlResponse   String?
-  mlConfidence Float?
-  status       ReviewStatus       @default(PENDING)
-  /// Derived roles this request was routed to (stored for audit)
-  routedRoles  UserRole[]
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
-  scanReport   ScanReport?        @relation(fields: [scanReportId], references: [id])
-  uploadedBy   User               @relation("MotherRequests", fields: [uploadedById], references: [id], onDelete: Cascade)
-  assignments    ExpertAssignment[]
-  doctorReviews  DoctorReview[]
-
-  @@index([uploadedById, createdAt])
-  @@index([status, requestType])
-  @@map("content_requests")
-}
-
-model ExpertAssignment {
-  id         String         @id @default(uuid())
-  requestId  String
-  expertId   String
-  status     ReviewStatus   @default(PENDING)
-  expertNote String?
-  piViewedAt DateTime?
-  reviewedAt DateTime?
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
-  expert     User           @relation("ExpertAssignments", fields: [expertId], references: [id], onDelete: Cascade)
-  request    ContentRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
-
-  @@unique([requestId, expertId])
-  @@index([expertId, status])
-  @@map("expert_assignments")
-}
-
-model TrainerContent {
-  id          String    @id @default(uuid())
-  authorId    String
-  title       String
-  body        String
-  targetGroup String?
-  mediaUrl    String?
-  isPublished Boolean   @default(false)
-  publishedAt DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  author      User      @relation("TrainerPosts", fields: [authorId], references: [id], onDelete: Cascade)
-
-  @@index([authorId, isPublished])
-  @@index([isPublished, publishedAt])
-  @@map("trainer_content")
-}
-
-model PiiAuditLog {
+// ─────────────────────────────────────────────
+// CHAT — maternity assistant messages
+// ─────────────────────────────────────────────
+model ChatMessage {
   id        String   @id @default(uuid())
-  expertId  String
-  requestId String
-  viewedAt  DateTime @default(now())
-  expert    User     @relation(fields: [expertId], references: [id], onDelete: Cascade)
-
-  @@index([expertId])
-  @@index([requestId])
-  @@map("pii_audit_logs")
-}
-
-/// Configurable key-value store for runtime settings.
-/// Cached in Redis; env vars used as fallback.
-/// Seed keys: FEATURED_REVIEW_QUOTA (default 40), FEATURED_CONTENT_QUOTA (default 5)
-model AppConfig {
-  key       String   @id
-  value     String
-  updatedAt DateTime @updatedAt
-
-  @@map("app_config")
-}
-
-/// Community post model — used for the public community feed
-model CommunityPost {
-  id        String        @id @default(uuid())
-  authorId  String        @map("author_id")
-  content   String
-  category  String?
-  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  author    User          @relation("CommunityPosts", fields: [authorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  comments  PostComment[]
-  likes     PostLike[]
-
-  @@index([authorId, createdAt(sort: Desc)], map: "idx_community_posts_author_created")
-  @@map("community_posts")
-}
-
-model PostLike {
-  id        String        @id @default(uuid())
-  postId    String        @map("post_id")
-  userId    String        @map("user_id")
-  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  post      CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-
-  @@unique([postId, userId])
-  @@map("post_likes")
-}
-
-model PostComment {
-  id        String        @id @default(uuid())
-  postId    String        @map("post_id")
-  authorId  String        @map("author_id")
-  content   String
-  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  author    User          @relation(fields: [authorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  post      CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-
-  @@index([postId, createdAt], map: "idx_post_comments_post_created")
-  @@map("post_comments")
-}
-
-enum UserRole {
-  MOTHER
-  MBBS
-  AYURVEDA
-  NUTRITIONIST
-  CHEF
-  YOGA_TRAINER
-  WORKOUT_TRAINER
-}
-
-enum ExpertStatus {
-  PENDING_APPROVAL
-  APPROVED
-  SUSPENDED
-}
-
-enum ContentRequestType {
-  MEDICAL_SCAN
-  DIETARY_QUERY
-  RECIPE_REVIEW
-  EXERCISE_QUERY
-  CROSS_DISCIPLINE
-  GENERAL_QUESTION
-}
-
-enum ReviewStatus {
-  PENDING
-  ML_REVIEWED
-  APPROVED
-  FLAGGED
-  NEEDS_MORE_INFO
-}
-
-model DoctorProfile {
-  id                  String            @id @default(uuid())
-  userId              String            @unique
-  specialization      DoctorSpecialty
-  registrationNo      String?           @unique
-  hospitalAffiliation String?
-  yearsExperience     Int?
-  isAvailable         Boolean           @default(false)
-  reviewsCompleted    Int               @default(0)
-  avgResponseHours    Float?
-  createdAt           DateTime          @default(now())
-  updatedAt           DateTime          @updatedAt
-  user                User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  reviews             DoctorReview[]
-
-  @@map("doctor_profiles")
-}
-
-model DoctorReview {
-  id               String         @id @default(uuid())
-  doctorProfileId  String
-  contentRequestId String
-  originalAnswer   String         @db.Text
-  reviewedAnswer   String?        @db.Text
-  status           ReviewStatus
-  doctorNote       String?
-  reviewedAt       DateTime?
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-  doctorProfile    DoctorProfile  @relation(fields: [doctorProfileId], references: [id], onDelete: Cascade)
-  contentRequest   ContentRequest @relation(fields: [contentRequestId], references: [id], onDelete: Cascade)
-
-  @@index([doctorProfileId, status])
-  @@index([status, createdAt])
-  @@map("doctor_reviews")
-}
-
-model ApprovedAnswer {
-  id           String   @id @default(uuid())
-  questionHash String   @unique
-  question     String   @db.Text
-  answer       String   @db.Text
-  approvedBy   String
-  approvedAt   DateTime @default(now())
-  useCount     Int      @default(0)
-  category     String
-  sources      String[]
-
-  @@index([questionHash])
-  @@index([category])
-  @@map("approved_answers")
-}
-
-model NannyChecklist {
-  id        String          @id @default(uuid())
   userId    String
-  nannyName String?
-  startDate DateTime        @default(now())
-  checks    NannyCheckLog[]
-  createdAt DateTime        @default(now())
-  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  role      String   // "user" | "assistant"
+  content   String
+
+  // Structured data extracted from this message (if any)
+  // e.g. { "babyBirthDate": "2025-03-01", "deliveryType": "cesarean" }
+  extractedData Json?
+
+  createdAt DateTime @default(now())
 
   @@index([userId])
-  @@map("nanny_checklists")
+  @@map("chat_messages")
 }
 
-model NannyCheckLog {
-  id          String         @id @default(uuid())
-  checklistId String
-  checkItem   String
-  dayNumber   Int
-  completed   Boolean        @default(false)
-  note        String?
-  checkedAt   DateTime?
-  createdAt   DateTime       @default(now())
-  checklist   NannyChecklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
-
-  @@index([checklistId, dayNumber])
-  @@map("nanny_check_logs")
-}
-
-enum DoctorSpecialty {
-  OBGYN
-  PEDIATRICIAN
-  AYURVEDA_VAIDYA
-  NUTRITIONIST
-  PHYSIOTHERAPIST
-  GENERAL_PHYSICIAN
-}
-
-model Appointment {
-  id          String          @id @default(uuid())
+// ─────────────────────────────────────────────
+// EXERCISE LOG — body recovery tracking
+// ─────────────────────────────────────────────
+model ExerciseLog {
+  id          String   @id @default(uuid())
   userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  exerciseId  String   // e.g. "15min-walk", "pelvic-floor", "kegel"
+  phase       String   // "pregnancy" | "postpartum"
+  durationMins Int?
+  completedAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("exercise_logs")
+}
+
+// ─────────────────────────────────────────────
+// FEEDING LOG — childcare tracking
+// ─────────────────────────────────────────────
+model FeedingLog {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type      String   // "breast-left" | "breast-right" | "bottle" | "formula"
+  startedAt DateTime
+  durationMins Int?
+  amountMl  Int?
+  notes     String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("feeding_logs")
+}
+
+// ─────────────────────────────────────────────
+// TRUSTED HELPER CHECK — nanny / chef scoring
+// ─────────────────────────────────────────────
+model TrustedHelperCheck {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  helperType  String   // "nanny" | "chef"
+  checks      Json     // { handWashing: true, hairTied: false, ... }
+  score       Int      // 0–100
+  checkedAt   DateTime @default(now())
+
+  @@index([userId])
+  @@map("trusted_helper_checks")
+}
+
+// ─────────────────────────────────────────────
+// APPOINTMENT — doctor / clinic bookings
+// ─────────────────────────────────────────────
+model Appointment {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   title       String
-  description String?
-  date        DateTime
+  doctorName  String?
   location    String?
-  type        AppointmentType @default(CHECKUP)
-  reminder    Boolean         @default(true)
-  completed   Boolean         @default(false)
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
-  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dateTime    DateTime
+  notes       String?
+  reminded    Boolean  @default(false)
 
-  @@index([userId, date])
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
   @@map("appointments")
-}
-
-model CareerPlan {
-  id             String   @id @default(uuid())
-  userId         String   @unique
-  profession     String
-  employer       String?
-  breakStartDate DateTime
-  returnDate     DateTime
-  planItems      Json
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("career_plans")
-}
-
-enum AppointmentType {
-  CHECKUP
-  ULTRASOUND
-  BLOOD_TEST
-  VACCINATION
-  DENTIST
-  OTHER
 }
