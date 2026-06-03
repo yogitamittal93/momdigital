@@ -1,5 +1,21 @@
 import { apiUrl } from "./api-url";
 
+export type CareerPlan = {
+  profession?: string;
+  employer?: string;
+  breakStartDate?: string | null;
+  returnDate?: string | null;
+  planItems?: {
+    workBeforePregnancy?: string | null;
+    maternityLeave?: string | null;
+    stayAtHomeDuration?: string | null;
+    planningCareerChange?: string | null;
+    stayConnectedBusiness?: string | null;
+    exerciseLog?: string[] | null;
+    returnToWorkChecklist?: string[] | null;
+  } | null;
+};
+
 export type ApiUser = {
   id: string;
   email: string;
@@ -8,6 +24,7 @@ export type ApiUser = {
   babyBirthDate?: string | null;
   avatarUrl?: string | null;
   role?: string;
+  careerPlan?: CareerPlan | null;
 };
 
 export type MeResponse = { user: ApiUser };

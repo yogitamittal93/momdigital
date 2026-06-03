@@ -25,6 +25,10 @@ export default function PregnancyTracker() {
     if (user?.dueDate) return getDaysUntilDue(user.dueDate);
     return 112;
   }, [user?.dueDate]);
+  const dueDateLabel = user?.dueDate ? new Date(user.dueDate).toLocaleDateString() : null;
+  const pregnancyStatus = user?.dueDate
+    ? `Due on ${dueDateLabel}`
+    : "Add your due date to personalize this tracker";
   const kickGoal = 10;
 
   const [kicks, setKicks] = useState(12);
@@ -72,7 +76,37 @@ export default function PregnancyTracker() {
                 <h2 className="mb-2">Your Baby This Week</h2>
                 <p className="text-sm text-muted-foreground">About the size of a corn 🌽</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Your baby can now hear sounds and may respond to your voice!
+                  {user?.dueDate
+                    ? `Due date is ${dueDateLabel}. ${daysUntilDue} days until your little one arrives.`
+                    : "Update your due date to get a pregnancy plan that matches your stage."}
+                </p>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="rounded-3xl border-none shadow-lg p-6 mb-6 border-dashed border-muted/40 bg-muted/5">
+            <div className="flex items-center justify-between gap-4 mb-4">
+              <div>
+                <h3 className="mb-1">Craving & mood log</h3>
+                <p className="text-sm text-muted-foreground">
+                  {user?.dueDate
+                    ? "Share what you’re craving and feeling with the AI assistant to save it here."
+                    : "This section fills in once your due date is added and your preferences are captured."}
+                </p>
+              </div>
+              <span className="text-xs text-muted-foreground">Personalized soon</span>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="rounded-3xl border border-dashed border-muted/40 p-4">
+                <p className="text-sm font-medium mb-2">Latest craving</p>
+                <p className="text-sm text-muted-foreground">
+                  No cravings logged yet. Share your preferences with the AI assistant to save them here.
+                </p>
+              </div>
+              <div className="rounded-3xl border border-dashed border-muted/40 p-4">
+                <p className="text-sm font-medium mb-2">Mood note</p>
+                <p className="text-sm text-muted-foreground">
+                  No mood notes yet. Add a note or tell the AI how you’re feeling to fill this space.
                 </p>
               </div>
             </div>

@@ -5,8 +5,10 @@ import { useEffect, useState } from "react";
 import AppShell from "@/components/layout/app-shell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { ImageWithFallback } from "@/components/figma/ImageWithFallback";
-import { api } from "@/lib/api-client";
+import { api, parseReply } from "@/lib/api-client";
+import { useUserProfile } from "@/hooks/use-user-profile";
 
 const FALLBACK = [
   {
@@ -28,8 +30,13 @@ const FALLBACK = [
 ];
 
 export default function AffirmationsPage() {
+  const { user } = useUserProfile();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [affirmations, setAffirmations] = useState(FALLBACK);
+  const [customPrompt, setCustomPrompt] = useState("");
+  const [customAffirmation, setCustomAffirmation] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [affirmationError, setAffirmationError] = useState<string | null>(null);
 
   useEffect(() => {
     api
@@ -51,6 +58,24 @@ export default function AffirmationsPage() {
       .catch(() => {});
   }, []);
 
+  const generateCustomAffirmation = async () => {
+    if (!customPrompt.trim()) return;
+    setIsGenerating(true);
+    setAffirmationError(null);
+
+    try {
+      const payload = `Create a supportive affirmation for someone who says: ${customPrompt.trim()}`;
+      const data = (await api.post("/chatbot/message", { message: payload })) as Record<string, unknown>;
+      const reply = parseReply(data);
+      setCustomAffirmation(reply || "Your words are valid, and you are enough.");
+      setCustomPrompt("");
+    } catch (error: unknown) {
+      setAffirmationError(error instanceof Error ? error.message : "Unable to generate affirmation.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   const currentAffirmation = affirmations[currentIndex];
 
   return (
@@ -65,7 +90,7 @@ export default function AffirmationsPage() {
               <div>
                 <h1 className="text-2xl md:text-3xl mb-1">Daily Affirmations</h1>
                 <p className="text-sm text-muted-foreground">
-                  Words of love and strength for you
+                  {user?.name ? `For ${user.name.split(" ")[0]}, words of love and strength.` : "Words of love and strength for you"}
                 </p>
               </div>
             </div>
@@ -100,6 +125,34 @@ export default function AffirmationsPage() {
                 </div>
                 <h2 className="mb-4">{currentAffirmation.title}</h2>
                 <p className="text-base leading-relaxed">{currentAffirmation.message}</p>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="rounded-3xl border-none shadow-lg p-6 mt-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3>Ask for a custom affirmation</h3>
+                <p className="text-sm text-muted-foreground">
+                  Tell us how you are feeling and get a personalized affirmation back.
+                </p>
+              </div>
+            </div>
+            <div className="space-y-4">
+              <Textarea
+                value={customPrompt}
+                onChange={(event) => setCustomPrompt(event.target.value)}
+                placeholder="I need a reminder that I am enough even when things feel overwhelming."
+                rows={4}
+              />
+              {affirmationError ? <p className="text-sm text-destructive">{affirmationError}</p> : null}
+              <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
+                <Button onClick={generateCustomAffirmation} disabled={isGenerating || !customPrompt.trim()}>
+                  {isGenerating ? "Generating…" : "Generate affirmation"}
+                </Button>
+                {customAffirmation ? (
+                  <p className="text-sm text-primary max-w-2xl">{customAffirmation}</p>
+                ) : null}
               </div>
             </div>
           </Card>

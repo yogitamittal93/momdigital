@@ -12,8 +12,9 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from 'prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { CareerPlanDto } from './dto/career-plan.dto';
 import { RedisService } from 'src/common/redis.service';
-import { ExpertStatus, UserRole } from '@prisma/client';
+import { ExpertStatus, Prisma, UserRole } from '@prisma/client';
 
 @Injectable()
 export class AuthService {
@@ -75,6 +76,15 @@ export class AuthService {
         featuredAt: true,
         createdAt: true,
         updatedAt: true,
+        careerPlan: {
+          select: {
+            profession: true,
+            employer: true,
+            breakStartDate: true,
+            returnDate: true,
+            planItems: true,
+          },
+        },
         // credentialUrl intentionally excluded from profile response
       },
     });
@@ -99,8 +109,10 @@ export class AuthService {
       throw new BadRequestException('Password is required');
     }
 
+    const normalizedEmail = dto.email.toLowerCase();
+
     const existingUser = await this.prisma.user.findUnique({
-      where: { email: dto.email },
+      where: { email: normalizedEmail },
     });
 
     if (existingUser) {
@@ -112,6 +124,7 @@ export class AuthService {
     const user = await this.prisma.user.create({
       data: {
         ...dto,
+        email: normalizedEmail,
         password: hashedPassword,
         role: UserRole.MOTHER,
       },
@@ -127,7 +140,7 @@ export class AuthService {
 
   async login(dto: LoginDto, userAgent?: string, ipAddress?: string) {
     const user = await this.prisma.user.findUnique({
-      where: { email: dto.email },
+      where: { email: dto.email.toLowerCase() },
     });
 
     if (!user || !user.password) {
@@ -342,5 +355,47 @@ export class AuthService {
 
     await this.redisService.del(this.profileCacheKey(userId));
     return { user };
+  }
+
+  async getCareerPlan(userId: string) {
+    return this.prisma.careerPlan.findUnique({
+      where: { userId },
+      select: {
+        profession: true,
+        employer: true,
+        breakStartDate: true,
+        returnDate: true,
+        planItems: true,
+      },
+    });
+  }
+
+  async upsertCareerPlan(userId: string, dto: CareerPlanDto) {
+    const now = new Date();
+    const updateData: Prisma.CareerPlanUpdateInput = {
+      profession: dto.profession,
+      employer: dto.employer,
+      breakStartDate: dto.breakStartDate ? new Date(dto.breakStartDate) : undefined,
+      returnDate: dto.returnDate ? new Date(dto.returnDate) : undefined,
+      planItems: dto.planItems as Prisma.InputJsonValue,
+    };
+
+    const createData: Prisma.CareerPlanCreateInput = {
+      user: { connect: { id: userId } },
+      profession: dto.profession ?? 'Career plan',
+      employer: dto.employer ?? null,
+      breakStartDate: dto.breakStartDate ? new Date(dto.breakStartDate) : now,
+      returnDate: dto.returnDate ? new Date(dto.returnDate) : now,
+      planItems: (dto.planItems ?? {}) as Prisma.InputJsonValue,
+    };
+
+    const careerPlan = await this.prisma.careerPlan.upsert({
+      where: { userId },
+      create: createData,
+      update: updateData,
+    });
+
+    await this.redisService.del(this.profileCacheKey(userId));
+    return careerPlan;
   }
 }

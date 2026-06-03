@@ -6,8 +6,29 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { useUserProfile } from "@/hooks/use-user-profile";
+
+function formatDate(dateString: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(dateString));
+}
 
 export default function BodyRecoveryPage() {
+  const { user } = useUserProfile();
+  const isPostpartum = Boolean(user?.babyBirthDate);
+  const title = isPostpartum ? "Postpartum Recovery" : "Body Recovery";
+  const subtitle = isPostpartum
+    ? "Daily healing routines for your first weeks after birth"
+    : "Gentle exercises to rebuild strength";
+  const profileStatus = user?.babyBirthDate
+    ? `Baby born ${formatDate(user.babyBirthDate)}`
+    : user?.dueDate
+    ? `Due ${formatDate(user.dueDate)}`
+    : null;
+
   const exercises = [
     { id: 1, name: "Deep Belly Breathing", duration: "2 min", sets: "5 breaths", intensity: "Very Light" },
     { id: 2, name: "Pelvic Floor Activation", duration: "3 min", sets: "10 pulses", intensity: "Very Light" },
@@ -19,8 +40,8 @@ export default function BodyRecoveryPage() {
       <div className="min-h-screen bg-background pb-8">
         <div className="bg-gradient-to-br from-accent/30 via-primary/10 to-secondary/10 px-4 md:px-8 pt-8 pb-8 rounded-b-[3rem]">
           <div className="max-w-4xl mx-auto">
-            <h1 className="text-2xl md:text-3xl mb-1">Body Recovery</h1>
-            <p className="text-sm text-muted-foreground">Gentle exercises to rebuild strength</p>
+            <h1 className="text-2xl md:text-3xl mb-1">{title}</h1>
+            <p className="text-sm text-muted-foreground">{subtitle}</p>
           </div>
         </div>
 
@@ -36,6 +57,25 @@ export default function BodyRecoveryPage() {
               </div>
             </div>
           </Card>
+
+          {profileStatus ? (
+            <Card className="rounded-3xl border-none shadow-lg p-6 bg-muted/10">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <h3 className="mb-1">Personal status</h3>
+                  <p className="text-sm text-muted-foreground">{profileStatus}</p>
+                </div>
+                <Badge className="rounded-full">{isPostpartum ? "Postpartum" : "Recovery"}</Badge>
+              </div>
+            </Card>
+          ) : (
+            <Card className="rounded-3xl border-none shadow-lg p-6 border-dashed border-muted/40 bg-muted/5">
+              <h3 className="mb-2">Personalize your plan</h3>
+              <p className="text-sm text-muted-foreground">
+                Update your profile or share your latest health details with the AI assistant to unlock a tailored recovery route.
+              </p>
+            </Card>
+          )}
 
           <Card className="rounded-3xl border-none shadow-lg p-6">
             <div className="flex items-center gap-3 mb-4">
@@ -62,6 +102,24 @@ export default function BodyRecoveryPage() {
               </Button>
             </Card>
           ))}
+
+          <Card className="rounded-3xl border-none shadow-lg p-6 border-dashed border-muted/40 bg-muted/5">
+            <h3 className="mb-4">Recovery check-in</h3>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="rounded-3xl border border-dashed border-muted/40 p-4">
+                <p className="text-sm font-medium mb-2">Mood check-in</p>
+                <p className="text-sm text-muted-foreground">
+                  Share how you feel with the AI assistant and your latest notes will appear here.
+                </p>
+              </div>
+              <div className="rounded-3xl border border-dashed border-muted/40 p-4">
+                <p className="text-sm font-medium mb-2">Recovery notes</p>
+                <p className="text-sm text-muted-foreground">
+                  This space will show your personalized recovery tips once the app receives your latest health details.
+                </p>
+              </div>
+            </div>
+          </Card>
         </div>
       </div>
     </AppShell>

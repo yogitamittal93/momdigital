@@ -20,6 +20,7 @@ import { RegisterDto } from './dto/register.dto';
 import { RegisterExpertDto } from './dto/register-expert.dto';
 import { LoginDto } from './dto/login.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { CareerPlanDto } from './dto/career-plan.dto';
 import type { Response, Request } from 'express';
 import { UseGuards } from '@nestjs/common';
 import { JwtGuard } from './jwt.gaurd';
@@ -43,7 +44,7 @@ export class AuthController {
     return {
       httpOnly: true,
       secure: isProduction,
-      sameSite: 'none' as const,
+      sameSite: isProduction ? ('none' as const) : ('lax' as const),
       maxAge,
       path: '/',
     };
@@ -54,26 +55,39 @@ export class AuthController {
     accessToken: string,
     refreshToken: string,
   ) {
-    res.cookie(
-      'access_token',
-      accessToken,
-      this.getCookieOptions(15 * 60 * 1000),
-    );
-    res.cookie(
-      'refresh_token',
-      refreshToken,
-      this.getCookieOptions(7 * 24 * 60 * 60 * 1000),
-    );
+    const cookieOptions = this.getCookieOptions(15 * 60 * 1000);
+    res.cookie('access_token', accessToken, cookieOptions);
+    res.cookie('refresh_token', refreshToken, this.getCookieOptions(7 * 24 * 60 * 60 * 1000));
   }
 
   private clearSessionCookies(res: Response) {
-    res.clearCookie('access_token', { path: '/' });
-    res.clearCookie('refresh_token', { path: '/' });
+    const cookieOptions = {
+      ...this.getCookieOptions(0),
+      expires: new Date(0),
+    };
+    res.clearCookie('access_token', cookieOptions);
+    res.clearCookie('refresh_token', cookieOptions);
   }
 
   @Post('register')
-  async register(@Body() dto: RegisterDto) {
-    return this.authService.register(dto);
+  async register(
+    @Body() dto: RegisterDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    await this.authService.register(dto);
+    const loginResult = await this.authService.login(
+      { email: dto.email, password: dto.password },
+      typeof req.headers['user-agent'] === 'string'
+        ? req.headers['user-agent']
+        : undefined,
+      req.ip,
+    );
+    this.setSessionCookies(res, loginResult.access_token, loginResult.refresh_token);
+    return {
+      message: 'Mom registered successfully',
+      user: loginResult.user,
+    };
   }
 
   @Post('login')
@@ -122,6 +136,18 @@ export class AuthController {
   @UseGuards(JwtGuard)
   async updateProfile(@Req() req: any, @Body() dto: UpdateProfileDto) {
     return this.authService.updateProfile(req.user.userId, dto);
+  }
+
+  @Get('career-plan')
+  @UseGuards(JwtGuard)
+  async getCareerPlan(@Req() req: any) {
+    return this.authService.getCareerPlan(req.user.userId);
+  }
+
+  @Post('career-plan')
+  @UseGuards(JwtGuard)
+  async upsertCareerPlan(@Req() req: any, @Body() dto: CareerPlanDto) {
+    return this.authService.upsertCareerPlan(req.user.userId, dto);
   }
 
   @Get('sessions')

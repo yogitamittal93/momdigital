@@ -1,17 +1,55 @@
+"use client";
+
 import { Heart, Calendar, TrendingUp, Bell, ChevronRight, Sparkles, Baby, Users, Star, Shield, Briefcase } from "lucide-react";
 import Link from "next/link";
+import { useMemo, useState } from "react";
 import { FeaturedProfessionals } from "../../components/professionals/FeaturedProfessionals";
 import { Card } from "../../components/ui/card";
 import { Progress } from "../../components/ui/progress";
 import { Button } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
+import { Textarea } from "../../components/ui/textarea";
 import { ImageWithFallback } from "../../components/figma/ImageWithFallback";
 import { ThemeToggle } from "../../components/theme/theme-toggle";
 import AppShell from "../../components/layout/app-shell";
+import { useUserProfile } from "@/hooks/use-user-profile";
+import { api, parseReply } from "@/lib/api-client";
+import { getDaysUntilDue, getPregnancyWeek } from "@/lib/pregnancy";
 
 export default function HomePage() {
-  const weekNumber = 24;
+  const { user, loading } = useUserProfile();
+  const weekNumber = user?.dueDate ? getPregnancyWeek(user.dueDate) : 24;
   const progressPercentage = (weekNumber / 40) * 100;
-  const daysUntilDueDate = 112;
+  const daysUntilDueDate = user?.dueDate ? getDaysUntilDue(user.dueDate) : 112;
+  const firstName = user?.name?.split(" ")[0] ?? "there";
+  const statusLabel = user?.dueDate
+    ? `${daysUntilDueDate} days until due date`
+    : user?.babyBirthDate
+    ? `Baby born on ${new Date(user.babyBirthDate).toLocaleDateString()}`
+    : "Complete your profile to get personalized updates.";
+
+  const [dailyNote, setDailyNote] = useState("");
+  const [noteResponse, setNoteResponse] = useState<string | null>(null);
+  const [isSendingNote, setIsSendingNote] = useState(false);
+  const [noteError, setNoteError] = useState<string | null>(null);
+
+  const handleSendNote = async () => {
+    if (!dailyNote.trim()) return;
+    setIsSendingNote(true);
+    setNoteError(null);
+
+    try {
+      const payload = `Save this personal note for ${user?.name ?? "my"} wellness plan: ${dailyNote.trim()}`;
+      const data = (await api.post("/chatbot/message", { message: payload })) as Record<string, unknown>;
+      const reply = parseReply(data) || "Your note has been received. I will remember this for your plan.";
+      setNoteResponse(reply);
+      setDailyNote("");
+    } catch (error: unknown) {
+      setNoteError(error instanceof Error ? error.message : "Unable to save note right now.");
+    } finally {
+      setIsSendingNote(false);
+    }
+  };
 
   const upcomingTasks = [
     { id: 1, title: "Doctor Appointment", date: "March 25, 2026", time: "10:00 AM", type: "appointment" },
@@ -34,8 +72,16 @@ export default function HomePage() {
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-2xl md:text-3xl mb-1">Welcome back, Sarah!</h1>
-              <p className="text-sm md:text-base text-muted-foreground">How are you feeling today?</p>
+              <h1 className="text-2xl md:text-3xl mb-1">
+                {loading ? "Welcome back" : `Welcome back, ${firstName}!`}
+              </h1>
+              <p className="text-sm md:text-base text-muted-foreground">
+                {loading
+                  ? "Loading your personalized plan..."
+                  : user
+                  ? "How are you feeling today?"
+                  : "Sign in to see your personalized maternal plan."}
+              </p>
             </div>
             <div className="flex items-center gap-2">
               <ThemeToggle />
@@ -59,7 +105,7 @@ export default function HomePage() {
                 <h3 className="mb-1">Your Journey</h3>
                 <p className="text-sm text-muted-foreground mb-3">Week {weekNumber} of 40</p>
                 <Progress value={progressPercentage} className="h-2" />
-                <p className="text-xs text-muted-foreground mt-2">{daysUntilDueDate} days until due date</p>
+                <p className="text-xs text-muted-foreground mt-2">{statusLabel}</p>
               </div>
             </div>
             <div className="flex gap-2 text-sm">
@@ -136,7 +182,7 @@ export default function HomePage() {
         {/* Tips for the Day */}
         <section className="mb-8">
           <h2 className="mb-4">Daily Wellness Tip</h2>
-          <Card className="border-none rounded-3xl overflow-hidden shadow-md">
+          <Card className="border-none rounded-3xl overflow-hidden shadow-md mb-6">
             <div className="h-48 bg-gradient-to-br from-accent/30 to-secondary/20 relative">
               <ImageWithFallback
                 src="https://images.unsplash.com/photo-1561742139-4b0210a1894d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwcmVnbmFuY3klMjB5b2dhJTIwd2VsbG5lc3N8ZW58MXx8fHwxNzc0MjkyOTM1fDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral"
@@ -152,6 +198,34 @@ export default function HomePage() {
               <Button className="w-full rounded-full bg-primary hover:bg-primary/90">
                 Start Session
               </Button>
+            </div>
+          </Card>
+
+          <Card className="rounded-3xl border-none shadow-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3>Quick wellness note</h3>
+                <p className="text-sm text-muted-foreground">
+                  Capture one thought or feeling and the AI assistant will use it for your plan.
+                </p>
+              </div>
+            </div>
+            <div className="space-y-4">
+              <Textarea
+                value={dailyNote}
+                onChange={(event) => setDailyNote(event.target.value)}
+                placeholder="I’m feeling a bit tired today, but I want to stay calm and strong…"
+                rows={4}
+              />
+              {noteError ? <p className="text-sm text-destructive">{noteError}</p> : null}
+              <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
+                <Button onClick={handleSendNote} disabled={isSendingNote || !dailyNote.trim()}>
+                  {isSendingNote ? "Sending…" : "Save note"}
+                </Button>
+                {noteResponse ? (
+                  <p className="text-sm text-primary max-w-2xl">{noteResponse}</p>
+                ) : null}
+              </div>
             </div>
           </Card>
         </section>

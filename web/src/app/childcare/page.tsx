@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { Baby, Milk, Moon, AlertCircle, Plus } from "lucide-react";
 import AppShell from "@/components/layout/app-shell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useUserProfile } from "@/hooks/use-user-profile";
 
 interface FeedEntry {
   id: number;
@@ -20,6 +21,20 @@ interface SleepEntry {
 }
 
 export default function ChildCarePage() {
+  const { user } = useUserProfile();
+  const babyLabel = useMemo(() => {
+    if (user?.babyBirthDate) {
+      const bornDate = new Date(user.babyBirthDate);
+      const ageDays = Math.max(
+        0,
+        Math.ceil((Date.now() - bornDate.getTime()) / (1000 * 60 * 60 * 24)),
+      );
+      return `Your baby • ${ageDays} days old`;
+    }
+    return "Add baby details to personalize care";
+  }, [user?.babyBirthDate]);
+  const hasBabyInfo = Boolean(user?.babyBirthDate);
+
   const [feedings, setFeedings] = useState<FeedEntry[]>([
     { id: 1, time: "7:00 AM", duration: 15 },
     { id: 2, time: "10:30 AM", duration: 12 },
@@ -53,7 +68,7 @@ export default function ChildCarePage() {
         <div className="bg-gradient-to-br from-chart-4/30 via-chart-4/20 to-background px-4 md:px-8 pt-8 pb-8 rounded-b-[3rem]">
           <div className="max-w-4xl mx-auto">
             <h1 className="text-2xl md:text-3xl mb-2">Child Care</h1>
-            <p className="text-muted-foreground">Baby Emma • 3 weeks old</p>
+            <p className="text-muted-foreground">{babyLabel}</p>
           </div>
         </div>
 
@@ -81,11 +96,19 @@ export default function ChildCarePage() {
             id="log-feeding-btn"
             className="w-full mb-6 rounded-full bg-primary hover:bg-primary/90 gap-2 h-14 shadow-lg active:scale-95 transition-transform text-base"
             onClick={handleLogFeeding}
-            disabled={loggingFeed}
+            disabled={loggingFeed || !hasBabyInfo}
           >
             <Plus className="w-5 h-5" />
-            {loggingFeed ? "Logged! ✓" : "Log a Feeding"}
+            {hasBabyInfo ? (loggingFeed ? "Logged! ✓" : "Log a Feeding") : "Complete profile first"}
           </Button>
+          {!hasBabyInfo ? (
+            <Card className="rounded-3xl border-none shadow-lg p-6 border-dashed border-muted/40 bg-muted/5 mb-6">
+              <h3 className="mb-2">Baby care will personalize once your profile is complete</h3>
+              <p className="text-sm text-muted-foreground">
+                Add your baby’s birth date and share your first care notes with the AI to unlock tailored feeding and sleep guidance.
+              </p>
+            </Card>
+          ) : null}
 
           <Tabs defaultValue="feedings" className="mb-6">
             <TabsList className="grid w-full grid-cols-3 rounded-2xl bg-muted/50 mb-6">
@@ -97,20 +120,26 @@ export default function ChildCarePage() {
             <TabsContent value="feedings">
               <Card className="rounded-3xl border-none shadow-lg p-6">
                 <h3 className="mb-4">Today's Feeding Log</h3>
-                <div className="space-y-3 max-h-72 overflow-y-auto">
-                  {feedings.map((f) => (
-                    <div
-                      key={f.id}
-                      className="flex items-center justify-between px-4 py-3 rounded-2xl bg-muted/30 text-sm"
-                    >
-                      <div className="flex items-center gap-3">
-                        <Milk className="w-4 h-4 text-primary" />
-                        <span>{f.time}</span>
+                {hasBabyInfo ? (
+                  <div className="space-y-3 max-h-72 overflow-y-auto">
+                    {feedings.map((f) => (
+                      <div
+                        key={f.id}
+                        className="flex items-center justify-between px-4 py-3 rounded-2xl bg-muted/30 text-sm"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Milk className="w-4 h-4 text-primary" />
+                          <span>{f.time}</span>
+                        </div>
+                        <span className="text-muted-foreground">{f.duration} min</span>
                       </div>
-                      <span className="text-muted-foreground">{f.duration} min</span>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-3xl border border-dashed border-muted/40 p-6 text-sm text-muted-foreground bg-muted/5">
+                    Add your baby’s birth date and share your first feeding note with the AI to see a personalized log.
+                  </div>
+                )}
               </Card>
             </TabsContent>
 
