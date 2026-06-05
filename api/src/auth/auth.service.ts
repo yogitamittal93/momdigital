@@ -29,9 +29,9 @@ export class AuthService {
     userId: string,
     email: string,
     sessionId: string,
-    role: UserRole,
+    role: string | undefined,
     isAdmin: boolean,
-    expertStatus?: ExpertStatus,
+    expertStatus?: string,
   ) {
     const payload = { userId, email, sessionId, role, isAdmin, expertStatus };
 
@@ -398,4 +398,100 @@ export class AuthService {
     await this.redisService.del(this.profileCacheKey(userId));
     return careerPlan;
   }
+  // ── OAuth ──────────────────────────────────────────────────────────────────
+
+  /**
+   * Called by both Google and GitHub strategies after provider authentication.
+   *
+   * Logic:
+   *  1. Find an existing OAuthAccount for this provider + providerId
+   *  2. If found → return the linked User (login flow)
+   *  3. If not found but email matches an existing User → link the account
+   *  4. If no user at all → create a new User + OAuthAccount (sign-up flow)
+   *
+   * Returns a minimal user object (id + email) used to mint JWT tokens.
+   */
+  async findOrCreateOAuthUser(params: {
+    provider:     string;
+    providerId:   string;
+    email:        string;
+    name:         string;
+    profileImage: string | null;
+    accessToken:  string;
+    refreshToken: string | null;
+  }) {
+    const { provider, providerId, email, name, profileImage, accessToken, refreshToken } = params;
+
+    // 1. Check for existing linked account
+    const existing = await this.prisma.oAuthAccount.findUnique({
+      where: { provider_providerId: { provider, providerId } },
+      include: { user: true },
+    });
+
+    if (existing) {
+      // Keep tokens fresh
+      await this.prisma.oAuthAccount.update({
+        where: { id: existing.id },
+        data: { accessToken, refreshToken },
+      });
+      return existing.user;
+    }
+
+    // 2. Check if a user with this email already exists (link accounts)
+    let user = email
+      ? await this.prisma.user.findUnique({ where: { email } })
+      : null;
+
+    // 3. Create new user if none found
+    if (!user) {
+      user = await this.prisma.user.create({
+        data: {
+          email,
+          name,
+          profileImage,
+          password: null,          // no password for OAuth users
+          onboardingDone: false,
+        },
+      });
+    }
+
+    // 4. Link the OAuth account to the user
+    await this.prisma.oAuthAccount.create({
+      data: {
+        userId:       user.id,
+        provider,
+        providerId,
+        email,
+        accessToken,
+        refreshToken,
+      },
+    });
+
+    return user;
+  }
+
+  /**
+   * Mint JWT tokens for an OAuth-authenticated user.
+   * Called from the OAuth callback controller routes.
+   */
+  async loginOAuthUser(userId: string) {
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+    });
+
+    // Generate a session-like ID (we don't use the Session table in this schema)
+    const sessionId = randomUUID();
+
+    const { access_token, refresh_token } = this.generateTokens(
+      user.id,
+      user.email,
+      sessionId,
+      undefined,   // no role in current schema
+      false,       // isAdmin
+    );
+
+    return { access_token, refresh_token, user };
+  }
+
+
 }

@@ -298,17 +298,27 @@ def detect_potential_hallucination(
     Check for hallucination red-flags in the answer.
     Web-grounded texts (PubMed abstracts, DDG results) are included as valid
     grounding context so accurate web-sourced claims are not blocked.
+
+    Whitespace is normalised before matching so "400 mg" in the answer
+    correctly matches "400mg" in the source context (and vice versa).
+    This prevents legitimate WHO/ICMR nutrition values from being
+    incorrectly flagged as hallucinations.
     """
     flags_found = []
     all_context_texts = list(retrieved_chunks)
     if web_grounded_texts:
         all_context_texts.extend(web_grounded_texts)
-    combined_context = " ".join(all_context_texts).lower()
-    answer_lower = answer.lower()
+
+    # Normalise: lowercase + strip ALL whitespace so "400 mg" == "400mg"
+    combined_context_norm = re.sub(r'\s+', '', " ".join(all_context_texts).lower())
+    answer_norm           = re.sub(r'\s+', '', answer.lower())
 
     for pattern in HALLUCINATION_RED_FLAGS:
-        for match in re.findall(pattern, answer_lower):
-            if match not in combined_context:
+        # Find matches in the normalised answer
+        for match in re.findall(pattern, answer_norm):
+            # Normalise the match itself too (already no spaces after sub, but be safe)
+            match_norm = re.sub(r'\s+', '', match)
+            if match_norm not in combined_context_norm:
                 flags_found.append({"pattern": pattern, "found": match})
 
     return {
@@ -514,6 +524,7 @@ def generate_response(
     category: str = "general",
     ner_context: dict = None,
     user_id: str = "anonymous",
+    passed_history: list = None,  
 ) -> dict:
     try:
         # ── Step 0: Product / Ingredient Intelligence ──────────────────────────
@@ -725,21 +736,37 @@ def generate_response(
                 all_sources_friendly.append(src)
 
         # ── Conversation history ───────────────────────────────────────────
-        history = _conversation_history[user_id][-4:]
-        history_text = ""
-        if history:
-            history_text = "RECENT CONVERSATION:\n"
-            for h in history:
-                history_text += f"User: {h['question']}\n"
-                history_text += f"Matrny: {h['answer'][:150]}...\n\n"
+# ── Conversation history ───────────────────────────────────────────
+        # Use history passed from NestJS (sourced from DB) if available,
+        # otherwise fall back to in-memory dict for local dev without NestJS.
+        if passed_history:
+            history = passed_history[-4:]
+            history_text = ""
+            if history:
+                history_text = "RECENT CONVERSATION:\n"
+                for h in history:
+                    role_label = "User" if h.get("role") == "user" else "Matrny"
+                    history_text += f"{role_label}: {h.get('content', '')[:150]}\n"
+                history_text += "\n"
+        else:
+            history = _conversation_history[user_id][-4:]
+            history_text = ""
+            if history:
+                history_text = "RECENT CONVERSATION:\n"
+                for h in history:
+                    history_text += f"User: {h['question']}\n"
+                    history_text += f"Matrny: {h['answer'][:150]}...\n\n"
 
         # ── User context ───────────────────────────────────────────────────
         user_ctx = ""
+        profile_data_missing = True   # assume missing — set False below if any profile field found
         if ner_context:
             if ner_context.get("pregnancyWeek"):
                 user_ctx += f"She is {ner_context['pregnancyWeek']} weeks pregnant. "
+                profile_data_missing = False
             if ner_context.get("babyAgeMonths"):
                 user_ctx += f"Her baby is {ner_context['babyAgeMonths']} months old. "
+                profile_data_missing = False
             if ner_context.get("conditions"):
                 user_ctx += f"Known conditions: {', '.join(ner_context['conditions'])}. "
                 profile_data_missing = False
@@ -835,7 +862,8 @@ Use these friendly source names in the References section: {', '.join(all_source
         # ── Append disclaimer ──────────────────────────────────────────────
         answer += DISCLAIMERS.get(tier, DISCLAIMERS["ai_generated"])
 
-        # ── Save to conversation history ───────────────────────────────────
+        # Keep in-memory history as fallback for local dev (no NestJS running).
+        # In production, NestJS passes history from the DB so this is unused.
         _conversation_history[user_id].append({
             "question": question,
             "answer": answer,

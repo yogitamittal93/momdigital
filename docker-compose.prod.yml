@@ -9,9 +9,11 @@ services:
       - "5000:5000"
     environment:
       - GROQ_API_KEY=${GROQ_API_KEY}
+      - HF_REPO_ID=${HF_REPO_ID}
+      - HF_TOKEN=${HF_TOKEN}
     volumes:
       - ./ml_service/data:/app/data
-      - ./ml_service/matrny_db:/app/matrny_db
+      - matrny_db_cache:/app/matrny_db
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
@@ -57,3 +59,4 @@ services:
 
 volumes:
   redis_data:
+  matrny_db_cache:   # persists the downloaded DB across container restarts

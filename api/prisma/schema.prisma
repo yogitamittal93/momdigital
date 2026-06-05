@@ -34,6 +34,7 @@ model User {
   trustedHelperChecks TrustedHelperCheck[]
   appointments        Appointment[]
   chatMessages        ChatMessage[]
+  oauthAccounts       OAuthAccount[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -135,4 +136,27 @@ model Appointment {
 
   @@index([userId])
   @@map("appointments")
+}
+
+// ─────────────────────────────────────────────
+// OAUTH ACCOUNT — linked social login providers
+// One user can have Google + GitHub + email/password
+// ─────────────────────────────────────────────
+model OAuthAccount {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  provider     String   // "google" | "github"
+  providerId   String   // the user's ID from that provider
+  email        String?  // provider email (may differ from user email)
+  accessToken  String?  // store if you need to call provider APIs later
+  refreshToken String?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([provider, providerId])   // one account per provider per user
+  @@index([userId])
+  @@map("oauth_accounts")
 }
