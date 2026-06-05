@@ -93,6 +93,8 @@ def query():
         question = data["question"].strip()
         category = data.get("category", "general")
         ner_context = data.get("nerContext", {})
+        conversation_history = data.get("conversationHistory", [])  # ← ADD
+        user_id = data.get("userId", "anonymous")                   # ← ADD
 
         if check_emergency(question):
             logger.warning("EMERGENCY detected in query: %s...", question[:50])
@@ -103,7 +105,7 @@ def query():
         if len(question) < 3:
             return jsonify({"error": "Question too short"}), 400
 
-        result = generate_response(question, category, ner_context)
+        result = generate_response(question, category, ner_context, user_id, conversation_history)
         return jsonify(result)
 
     except Exception as e:
@@ -146,4 +148,4 @@ def check_approved():
 
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=5000, debug=False)
+    app.run(host="0.0.0.0", port=5000, debug=False)

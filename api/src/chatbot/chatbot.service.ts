@@ -117,7 +117,7 @@ export class ChatbotService {
         vitals.hasHeight;
 
       if (onboardingComplete) {
-        const ragResult = await this.getRAGResponse(message, extracted, user);
+        const ragResult = await this.getRAGResponse(message, extracted, user, userId);
         if (ragResult) {
           if (
             ragResult.queueForDoctor ||
@@ -306,14 +306,20 @@ export class ChatbotService {
   }
 
   /**
-   * Persist extracted chat data to the authenticated user profile.
+   * Persist data extracted from the chat message to the User record.
    *
    * Fields synced:
    *   name          — if extracted and not already set
    *   dueDate       — derived from pregnancyWeek, or parsed directly
-   *   babyBirthDate — parsed from natural language
-   *   deliveryType  — inferred from keywords
+   *   babyBirthDate — parsed from natural language ("my baby was born on...")
+   *   deliveryType  — "cesarean" or "vaginal" from keywords
    *   babyName      — if extracted
+   *
+   * Rules:
+   *   - Never overwrite an existing value with null/undefined
+   *   - babyBirthDate takes priority: if present, clear dueDate
+   *   - All date parsing is validated before writing
+   *   - Any field change is logged at INFO level for auditability
    */
   private async saveDataToPrisma(
     userId: string,
@@ -329,37 +335,26 @@ export class ChatbotService {
       const patch = this.buildProfilePatch(user, data);
 
       if (Object.keys(patch).length > 0) {
-        await this.prisma.user.update({
-          where: { id: userId },
-          data: patch,
-        });
+        await this.prisma.user.update({ where: { id: userId }, data: patch });
         this.logger.log(
           `Profile auto-synced for user ${userId}: ${JSON.stringify(Object.keys(patch))}`,
         );
       }
 
-      await this.prisma.contentRequest.create({
-        data: {
-          requestType: 'GENERAL_QUESTION',
-          uploadedById: userId,
-          questionText: 'Onboarding Data Update',
-          context: {
-            weight: data.weight_value ?? null,
-            height: data.height_value ?? null,
-            conditions: data.conditions ?? [],
-            rawExtraction: data,
-          } as object,
-          status: 'ML_REVIEWED',
-        },
-      });
     } catch (err) {
       this.logger.error(
         `saveDataToPrisma error: ${(err as Error).message}`,
       );
-      // Non-fatal: the chatbot reply should still be returned.
+      // Non-fatal — don't rethrow; chatbot reply still returns
     }
   }
 
+  /**
+   * Build a Prisma update payload from extracted chat data.
+   * Only includes fields that are present in extracted data AND
+   * either missing from the user record or being upgraded to a more
+   * specific value (e.g. pregnancyWeek → dueDate → babyBirthDate).
+   */
   private buildProfilePatch(
     user: {
       name: string;
@@ -372,6 +367,7 @@ export class ChatbotService {
   ): Record<string, unknown> {
     const patch: Record<string, unknown> = {};
 
+    // ── name ────────────────────────────────────────────────────────────────
     if (
       data.name &&
       typeof data.name === 'string' &&
@@ -380,17 +376,20 @@ export class ChatbotService {
         user.name.toLowerCase().includes('guest') ||
         user.name.toLowerCase().includes('user'))
     ) {
-      patch.name = data.name.trim();
+      patch.name = (data.name as string).trim();
     }
 
+    // ── babyName ─────────────────────────────────────────────────────────────
     if (
       data.babyName &&
       typeof data.babyName === 'string' &&
       !user.babyName
     ) {
-      patch.babyName = data.babyName.trim();
+      patch.babyName = (data.babyName as string).trim();
     }
 
+    // ── babyBirthDate ────────────────────────────────────────────────────────
+    // Highest priority — if baby is born, clear dueDate and set birth date.
     const rawBirthDate =
       (data.babyBirthDate as string | null) ??
       (data.baby_birth_date as string | null);
@@ -398,11 +397,19 @@ export class ChatbotService {
     if (rawBirthDate) {
       const parsed = this.parseSafeDate(rawBirthDate);
       if (parsed && this.isPlausibleBirthDate(parsed)) {
-        patch.babyBirthDate = parsed;
-        patch.dueDate = null;
+        if (
+          !user.babyBirthDate ||
+          Math.abs(parsed.getTime() - user.babyBirthDate.getTime()) >
+            24 * 60 * 60 * 1000 // more than 1 day different — update
+        ) {
+          patch.babyBirthDate = parsed;
+          patch.dueDate = null; // baby is born — due date is no longer relevant
+        }
       }
     }
 
+    // ── dueDate (from explicit date or derived from pregnancyWeek) ───────────
+    // Only sync if babyBirthDate is not being set and baby is not already born.
     if (!patch.babyBirthDate && !user.babyBirthDate) {
       const rawDueDate =
         (data.dueDate as string | null) ??
@@ -411,11 +418,18 @@ export class ChatbotService {
       if (rawDueDate) {
         const parsed = this.parseSafeDate(rawDueDate);
         if (parsed && this.isPlausibleDueDate(parsed)) {
-          patch.dueDate = parsed;
+          if (
+            !user.dueDate ||
+            Math.abs(parsed.getTime() - user.dueDate.getTime()) >
+              7 * 24 * 60 * 60 * 1000 // more than 1 week different — update
+          ) {
+            patch.dueDate = parsed;
+          }
         }
       } else if (data.pregnancyWeek && !user.dueDate) {
+        // Derive due date from pregnancy week as a fallback
         const week = parseInt(String(data.pregnancyWeek), 10);
-        if (!Number.isNaN(week) && week >= 4 && week <= 40) {
+        if (!isNaN(week) && week >= 4 && week <= 42) {
           const weeksRemaining = 40 - week;
           const dueDate = new Date();
           dueDate.setDate(dueDate.getDate() + weeksRemaining * 7);
@@ -424,59 +438,64 @@ export class ChatbotService {
       }
     }
 
+    // ── deliveryType ─────────────────────────────────────────────────────────
+    // Parse from explicit field or natural language keywords in the raw message.
     if (!user.deliveryType) {
       const rawDelivery =
         (data.deliveryType as string | null) ??
         (data.delivery_type as string | null);
 
-      const normalized = this.normalizeDeliveryType(rawDelivery ?? '');
-      if (normalized) patch.deliveryType = normalized;
+      if (rawDelivery) {
+        const normalized = this.normalizeDeliveryType(rawDelivery);
+        if (normalized) patch.deliveryType = normalized;
+      }
     }
 
     return patch;
   }
 
+  // ── Date helpers ───────────────────────────────────────────────────────────
+
   private parseSafeDate(value: unknown): Date | null {
     if (!value) return null;
+    const str = String(value).trim();
+    if (!str || str === 'null' || str === 'undefined') return null;
 
-    const text = String(value).trim();
-    if (!text || text === 'null' || text === 'undefined') return null;
-
-    const date = new Date(text);
-    return Number.isNaN(date.getTime()) ? null : date;
+    const d = new Date(str);
+    if (isNaN(d.getTime())) return null;
+    return d;
   }
 
-  private isPlausibleBirthDate(date: Date): boolean {
+  private isPlausibleBirthDate(d: Date): boolean {
     const now = new Date();
     const nineMonthsAgo = new Date(now);
     nineMonthsAgo.setMonth(nineMonthsAgo.getMonth() - 9);
-
-    return date >= nineMonthsAgo && date <= now;
+    // Birth date must be in the past and within the last 9 months
+    return d <= now && d >= nineMonthsAgo;
   }
 
-  private isPlausibleDueDate(date: Date): boolean {
+  private isPlausibleDueDate(d: Date): boolean {
     const now = new Date();
     const twoWeeksAgo = new Date(now);
     twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
     const tenMonthsAhead = new Date(now);
     tenMonthsAhead.setMonth(tenMonthsAhead.getMonth() + 10);
-
-    return date >= twoWeeksAgo && date <= tenMonthsAhead;
+    // Due date should be within 2 weeks past to 10 months ahead
+    return d >= twoWeeksAgo && d <= tenMonthsAhead;
   }
 
   private normalizeDeliveryType(raw: string): 'cesarean' | 'vaginal' | null {
     const lower = raw.toLowerCase();
-
     if (
       lower.includes('cesarean') ||
       lower.includes('caesarean') ||
       lower.includes('c-section') ||
       lower.includes('csection') ||
+      lower.includes('c section') ||
       lower.includes('surgical')
     ) {
       return 'cesarean';
     }
-
     if (
       lower.includes('vaginal') ||
       lower.includes('normal delivery') ||
@@ -485,7 +504,6 @@ export class ChatbotService {
     ) {
       return 'vaginal';
     }
-
     return null;
   }
 
@@ -493,6 +511,7 @@ export class ChatbotService {
     message: string,
     extracted: Record<string, unknown>,
     user: { dueDate: Date | null },
+    userId: string,
   ): Promise<RagResult | null> {
     const healthKeywords = [
       'eat', 'food', 'diet', 'recipe', 'pain', 'feel', 'symptom',
@@ -508,7 +527,7 @@ export class ChatbotService {
 
     const emergencyKeywords = [
       'not breathing', 'not moving', 'unconscious', 'emergency',
-      'heavy bleeding', 'baby not moving', 'can\'t breathe',
+      'heavy bleeding', 'baby not moving', "can\'t breathe",
     ];
     const isEmergency = emergencyKeywords.some((kw) =>
       message.toLowerCase().includes(kw),
@@ -526,6 +545,19 @@ export class ChatbotService {
         category = 'nutrition';
       }
 
+      // Fetch last 4 messages from DB — passed to ML service so conversation
+      // context survives server restarts instead of living in Python memory.
+      const recentMessages = await this.prisma.chatMessage.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take: 4,
+        select: { role: true, content: true },
+      });
+      // Reverse so oldest comes first (chronological order for the prompt)
+      const conversationHistory = recentMessages
+        .reverse()
+        .map((m) => ({ role: m.role, content: m.content }));
+
       const ragResponse = await firstValueFrom(
         this.httpService.post(
           `${this.mlBaseUrl}/query`,
@@ -539,6 +571,7 @@ export class ChatbotService {
               weight: extracted.weight_value,
               height: extracted.height_value,
             },
+            conversationHistory,   // ← NEW: passed from DB, not Python memory
           },
           { timeout: 30000 },
         ),

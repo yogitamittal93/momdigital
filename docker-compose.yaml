@@ -1,50 +1,113 @@
+# docker-compose.yaml — LOCAL DEVELOPMENT
+# Run with: docker-compose up
+# All secrets pulled from .env at the project root — never hardcoded here.
+# Copy .env.example to .env and fill in the values before first run.
+
 services:
-  # 1. The Local Database
+
+  # ── 1. PostgreSQL ──────────────────────────────────────────────────────────
   db:
     image: postgres:17-alpine
     container_name: mom-db
     restart: always
     environment:
-      POSTGRES_USER: mom_user
-      POSTGRES_PASSWORD: mom_password
-      POSTGRES_DB: mom_digital
+      POSTGRES_USER: ${DB_USER:-mom_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-mom_password}
+      POSTGRES_DB: ${DB_NAME:-mom_digital}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-mom_user} -d ${DB_NAME:-mom_digital}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  # 2. The NestJS API (Backend)
+  # ── 2. Redis (rate limiting + future session cache) ────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: mom-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── 3. ML / RAG service (Python Flask) ────────────────────────────────────
+  ml:
+    build:
+      context: ./ml_service
+    container_name: mom-ml
+    restart: always
+    # Port NOT exposed externally — only reachable from other containers.
+    # The api service calls http://ml:5000 on the internal Docker network.
+    expose:
+      - "5000"
+    environment:
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - HF_REPO_ID=${HF_REPO_ID}
+      - HF_TOKEN=${HF_TOKEN}
+    volumes:
+      - matrny_db_cache:/app/matrny_db   # persists downloaded ChromaDB across restarts
+      - ./ml_service/data:/app/data       # PDFs / CSVs for re-ingestion
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s   # give time for ChromaDB + model to load
+
+  # ── 4. NestJS API ──────────────────────────────────────────────────────────
   api:
     build:
       context: ./api
     container_name: mom-api
+    restart: always
     ports:
-      - "3001:3001"  # must match PORT env var below
+      - "3001:3001"
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
       PORT: "3001"
-      # Use the "db" service name — not localhost — inside Docker network
-      DATABASE_URL: "postgresql://mom_user:mom_password@db:5432/mom_digital?schema=public"
-      JWT_ACCESS_SECRET: "change-me-in-production"
-      JWT_REFRESH_SECRET: "change-me-in-production-refresh"
+      DATABASE_URL: "postgresql://${DB_USER:-mom_user}:${DB_PASSWORD:-mom_password}@db:5432/${DB_NAME:-mom_digital}?schema=public"
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       CLIENT_URL: "http://localhost:3000"
       CLIENT_URLS: "http://localhost:3000"
+      ML_SERVICE_URL: "http://ml:5000"
+      REDIS_URL: "redis://redis:6379"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ml:
+        condition: service_healthy
     volumes:
       - ./api:/app
       - /app/node_modules
+      - uploads:/app/uploads
 
-  # 3. The Next.js App (Frontend)
+  # ── 5. Next.js frontend ────────────────────────────────────────────────────
   web:
     build:
       context: ./web
     container_name: mom-web
+    restart: always
     ports:
-      - "3000:3000"  # Next.js on localhost:3000
+      - "3000:3000"
     environment:
-      # Use the "api" Docker service name — not localhost — for server-side fetches
-      - NEXT_PUBLIC_API_URL=http://api:3001/api
+      # NEXT_PUBLIC_ vars are inlined at build time by Next.js.
+      # For server-side fetches (SSR): use the internal Docker service name.
+      # For browser fetches: must be localhost (the user's browser can't reach "api").
+      # We use localhost here — browser calls go to localhost:3001, SSR calls also
+      # work because Next.js server-side code runs on the host network in dev.
+      - NEXT_PUBLIC_API_URL=http://localhost:3001/api
     depends_on:
       - api
     volumes:
@@ -53,3 +116,12 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:
+  matrny_db_cache:
+  uploads:
+
+
+#before running, generate strong random secrets for JWT signing:
+# node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+# Run twice — one for JWT_ACCESS_SECRET, one for JWT_REFRESH_SECRET
+# Paste both into your .env file

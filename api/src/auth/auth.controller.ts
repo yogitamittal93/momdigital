@@ -25,6 +25,7 @@ import type { Response, Request } from 'express';
 import { UseGuards } from '@nestjs/common';
 import { JwtGuard } from './jwt.gaurd';
 import { AdminGuard } from 'src/common/guards/admin.guard';
+import { GoogleOAuthGuard, GitHubOAuthGuard } from './guards/oauth.guard';
 import { ExpertStatus } from '@prisma/client';
 import { PrismaService } from 'prisma/prisma.service';
 import { mkdir, writeFile } from 'fs/promises';
@@ -234,4 +235,51 @@ export class AuthController {
     });
     return { message: 'Expert suspended.' };
   }
+  // ── Google OAuth ───────────────────────────────────────────────────────────
+
+  @Get('google')
+  @UseGuards(GoogleOAuthGuard)
+  googleLogin() {
+    // Passport redirects to Google — nothing to do here
+  }
+
+  @Get('google/callback')
+  @UseGuards(GoogleOAuthGuard)
+  async googleCallback(
+    @Req() req: Request & { user: { id: string } },
+    @Res() res: Response,
+  ) {
+    const { access_token, refresh_token } =
+      await this.authService.loginOAuthUser(req.user.id);
+
+    this.setSessionCookies(res as unknown as import('express').Response, access_token, refresh_token);
+
+    const clientUrl = this.configService.get<string>('CLIENT_URL') ?? 'http://localhost:3000';
+    return (res as unknown as import('express').Response).redirect(`${clientUrl}/dashboard`);
+  }
+
+  // ── GitHub OAuth ───────────────────────────────────────────────────────────
+
+  @Get('github')
+  @UseGuards(GitHubOAuthGuard)
+  githubLogin() {
+    // Passport redirects to GitHub — nothing to do here
+  }
+
+  @Get('github/callback')
+  @UseGuards(GitHubOAuthGuard)
+  async githubCallback(
+    @Req() req: Request & { user: { id: string } },
+    @Res() res: Response,
+  ) {
+    const { access_token, refresh_token } =
+      await this.authService.loginOAuthUser(req.user.id);
+
+    this.setSessionCookies(res as unknown as import('express').Response, access_token, refresh_token);
+
+    const clientUrl = this.configService.get<string>('CLIENT_URL') ?? 'http://localhost:3000';
+    return (res as unknown as import('express').Response).redirect(`${clientUrl}/dashboard`);
+  }
+
+
 }
