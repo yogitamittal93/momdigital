@@ -30,14 +30,35 @@ export type ApiUser = {
 export type MeResponse = { user: ApiUser };
 
 function parseReply(data: Record<string, unknown>): string {
-  return (
-    (data.reply as string) ||
-    (data.message as string) ||
-    (data.content as string) ||
-    (data.response as string) ||
-    (data.answer as string) ||
-    ""
-  );
+  const nested = (data.data ?? {}) as Record<string, unknown>;
+  const candidates = [
+    data.reply,
+    data.message,
+    data.content,
+    data.response,
+    data.answer,
+    nested.reply,
+    nested.message,
+    nested.content,
+    nested.response,
+    nested.answer,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate;
+    }
+
+    if (Array.isArray(candidate)) {
+      const joined = candidate
+        .map((item) => (typeof item === "string" ? item : ""))
+        .filter(Boolean)
+        .join(" ");
+      if (joined.trim()) return joined;
+    }
+  }
+
+  return "";
 }
 
 export async function apiCall(
@@ -84,9 +105,16 @@ export async function apiCall(
   try {
     data = text ? JSON.parse(text) : {};
   } catch {
+    if (typeof window !== "undefined" && process.env.NODE_ENV !== "production") {
+      console.debug("[api-client] non-JSON response", { endpoint, status: response.status, text });
+    }
     if (!response.ok) {
       throw new Error(`API error: ${response.status}`);
     }
+  }
+
+  if (typeof window !== "undefined" && process.env.NODE_ENV !== "production") {
+    console.debug("[api-client] response", { endpoint, status: response.status, data });
   }
 
   if (!response.ok) {

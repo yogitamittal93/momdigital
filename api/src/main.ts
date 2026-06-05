@@ -11,6 +11,7 @@ async function bootstrap() {
 
   // ─── CORS ──────────────────────────────────────────────────────────────────
   // Parse comma-separated CLIENT_URLS (e.g. for multi-tenant / staging envs).
+  const frontendOrigin = configService.get<string>('FRONTEND_URL');
   const clientUrls =
     configService
       .get<string>('CLIENT_URLS')
@@ -20,7 +21,9 @@ async function bootstrap() {
   const fallbackClientUrl =
     configService.get<string>('CLIENT_URL') ?? 'http://localhost:3000';
 
-  const allowedOrigins = clientUrls.length ? clientUrls : [fallbackClientUrl];
+  const allowedOrigins = Array.from(
+    new Set([frontendOrigin, ...clientUrls, fallbackClientUrl].filter(Boolean) as string[]),
+  );
 
   app.enableCors({
     origin: allowedOrigins,
@@ -62,4 +65,4 @@ async function bootstrap() {
   logger.log(`CORS: allowing origins → ${allowedOrigins.join(', ')}`);
 }
 
-bootstrap();
+bootstrap();

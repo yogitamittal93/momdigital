@@ -1,17 +1,19 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
-import { Baby, Milk, Moon, AlertCircle, Plus } from "lucide-react";
+import { useState, useCallback, useEffect, useMemo } from "react";
+import { Milk, Moon, AlertCircle, Plus } from "lucide-react";
 import AppShell from "@/components/layout/app-shell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useUserProfile } from "@/hooks/use-user-profile";
+import api from "@/lib/api";
 
 interface FeedEntry {
-  id: number;
-  time: string;
-  duration: number; // minutes
+  id: string;
+  type: string;
+  startedAt: string;
+  durationMins?: number | null;
 }
 
 interface SleepEntry {
@@ -35,32 +37,57 @@ export default function ChildCarePage() {
   }, [user?.babyBirthDate]);
   const hasBabyInfo = Boolean(user?.babyBirthDate);
 
-  const [feedings, setFeedings] = useState<FeedEntry[]>([
-    { id: 1, time: "7:00 AM", duration: 15 },
-    { id: 2, time: "10:30 AM", duration: 12 },
-    { id: 3, time: "1:00 PM", duration: 14 },
-    { id: 4, time: "4:30 PM", duration: 13 },
-    { id: 5, time: "7:00 PM", duration: 16 },
-    { id: 6, time: "11:00 PM", duration: 10 },
-  ]);
+  const [feedings, setFeedings] = useState<FeedEntry[]>([]);
   const [sleepLog] = useState<SleepEntry[]>([
     { id: 1, date: "Today", hours: 12 },
     { id: 2, date: "Yesterday", hours: 11.5 },
   ]);
   const [loggingFeed, setLoggingFeed] = useState(false);
+  const [feedingType, setFeedingType] = useState("breast-left");
 
-  const handleLogFeeding = useCallback(() => {
-    setLoggingFeed(true);
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    const newEntry: FeedEntry = {
-      id: Date.now(),
-      time: timeStr,
-      duration: Math.floor(10 + Math.random() * 8), // realistic 10-18 min
-    };
-    setFeedings((prev) => [newEntry, ...prev]);
-    setTimeout(() => setLoggingFeed(false), 800);
+  const loadFeedings = useCallback(async () => {
+    try {
+      const { data } = await api.get<{ logs?: FeedEntry[] }>("/feeding-logs?date=today");
+      const nextFeedings = Array.isArray(data?.logs) ? data.logs : [];
+      setFeedings(nextFeedings);
+      if (nextFeedings[0]?.type) {
+        setFeedingType(nextFeedings[0].type);
+      }
+    } catch {
+      setFeedings([]);
+    }
   }, []);
+
+  useEffect(() => {
+    loadFeedings();
+  }, [loadFeedings]);
+
+  const handleLogFeeding = useCallback(async () => {
+    if (!hasBabyInfo) return;
+
+    setLoggingFeed(true);
+
+    try {
+      await api.post("/feeding-logs", {
+        type: feedingType,
+        startedAt: new Date().toISOString(),
+        durationMins: 15,
+      });
+      await loadFeedings();
+    } finally {
+      setLoggingFeed(false);
+    }
+  }, [feedingType, hasBabyInfo, loadFeedings]);
+
+  const feedingTypeLabel = useMemo(
+    () => ({
+      "breast-left": "Left breast",
+      "breast-right": "Right breast",
+      bottle: "Bottle",
+      formula: "Formula",
+    }),
+    [],
+  );
 
   return (
     <AppShell>
@@ -91,6 +118,23 @@ export default function ChildCarePage() {
             </Card>
           </div>
 
+          {hasBabyInfo ? (
+            <div className="mb-6 rounded-3xl border border-muted/40 bg-card p-4 shadow-sm">
+              <label htmlFor="feeding-type" className="mb-2 block text-sm font-medium">Feeding type</label>
+              <select
+                id="feeding-type"
+                value={feedingType}
+                onChange={(event) => setFeedingType(event.target.value)}
+                className="w-full rounded-2xl border border-muted/60 bg-background px-4 py-3 text-sm shadow-sm outline-none transition focus:border-primary"
+              >
+                <option value="breast-left">Left breast</option>
+                <option value="breast-right">Right breast</option>
+                <option value="bottle">Bottle</option>
+                <option value="formula">Formula</option>
+              </select>
+            </div>
+          ) : null}
+
           {/* Log feeding button */}
           <Button
             id="log-feeding-btn"
@@ -105,7 +149,7 @@ export default function ChildCarePage() {
             <Card className="rounded-3xl border-none shadow-lg p-6 border-dashed border-muted/40 bg-muted/5 mb-6">
               <h3 className="mb-2">Baby care will personalize once your profile is complete</h3>
               <p className="text-sm text-muted-foreground">
-                Add your baby’s birth date and share your first care notes with the AI to unlock tailored feeding and sleep guidance.
+                Add your baby&apos;s birth date and share your first care notes with the AI to unlock tailored feeding and sleep guidance.
               </p>
             </Card>
           ) : null}
@@ -119,7 +163,7 @@ export default function ChildCarePage() {
 
             <TabsContent value="feedings">
               <Card className="rounded-3xl border-none shadow-lg p-6">
-                <h3 className="mb-4">Today's Feeding Log</h3>
+                <h3 className="mb-4">Today&apos;s Feeding Log</h3>
                 {hasBabyInfo ? (
                   <div className="space-y-3 max-h-72 overflow-y-auto">
                     {feedings.map((f) => (
@@ -129,15 +173,23 @@ export default function ChildCarePage() {
                       >
                         <div className="flex items-center gap-3">
                           <Milk className="w-4 h-4 text-primary" />
-                          <span>{f.time}</span>
+                          <span>
+                            {new Date(f.startedAt).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                          <span className="text-muted-foreground">
+                            {feedingTypeLabel[f.type as keyof typeof feedingTypeLabel] ?? f.type}
+                          </span>
                         </div>
-                        <span className="text-muted-foreground">{f.duration} min</span>
+                        <span className="text-muted-foreground">{f.durationMins ?? 15} min</span>
                       </div>
                     ))}
                   </div>
                 ) : (
                   <div className="rounded-3xl border border-dashed border-muted/40 p-6 text-sm text-muted-foreground bg-muted/5">
-                    Add your baby’s birth date and share your first feeding note with the AI to see a personalized log.
+                    Add your baby&apos;s birth date and share your first feeding note with the AI to see a personalized log.
                   </div>
                 )}
               </Card>

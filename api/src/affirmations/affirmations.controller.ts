@@ -1,4 +1,4 @@
-import { Controller, Get, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 import { JwtGuard } from 'src/auth/jwt.gaurd';
 import { PrismaService } from 'prisma/prisma.service';
 import { AffirmationsService } from './affirmations.service';
@@ -10,6 +10,15 @@ export class AffirmationsController {
     private readonly affirmationsService: AffirmationsService,
     private readonly prisma: PrismaService,
   ) {}
+
+  @Post('generate')
+  async generateCustom(@Body() body: { prompt?: string }) {
+    if (!body?.prompt?.trim()) {
+      throw new BadRequestException('Prompt is required');
+    }
+
+    return this.affirmationsService.generateCustomAffirmation(body.prompt);
+  }
 
   @Get('daily')
   async getDaily(@Req() req: { user: { userId: string } }) {

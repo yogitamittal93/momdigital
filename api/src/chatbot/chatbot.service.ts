@@ -305,6 +305,16 @@ export class ChatbotService {
     };
   }
 
+  /**
+   * Persist extracted chat data to the authenticated user profile.
+   *
+   * Fields synced:
+   *   name          — if extracted and not already set
+   *   dueDate       — derived from pregnancyWeek, or parsed directly
+   *   babyBirthDate — parsed from natural language
+   *   deliveryType  — inferred from keywords
+   *   babyName      — if extracted
+   */
   private async saveDataToPrisma(
     userId: string,
     data: Record<string, unknown>,
@@ -312,28 +322,20 @@ export class ChatbotService {
     try {
       const user = await this.prisma.user.findUnique({ where: { id: userId } });
       if (!user) {
-        this.logger.warn(`User with ID ${userId} not found. Skipping DB update.`);
+        this.logger.warn(`User ${userId} not found. Skipping DB update.`);
         return;
       }
 
-      const updatePayload: Record<string, unknown> = {};
+      const patch = this.buildProfilePatch(user, data);
 
-      if (data.name) updatePayload.name = data.name as string;
-
-      if (user.role === 'MOTHER' && data.pregnancyWeek) {
-        if (!user.babyBirthDate) {
-          const weeksRemaining = 40 - parseInt(String(data.pregnancyWeek), 10);
-          const dueDate = new Date();
-          dueDate.setDate(dueDate.getDate() + weeksRemaining * 7);
-          updatePayload.dueDate = dueDate;
-        }
-      }
-
-      if (Object.keys(updatePayload).length > 0) {
+      if (Object.keys(patch).length > 0) {
         await this.prisma.user.update({
           where: { id: userId },
-          data: updatePayload,
+          data: patch,
         });
+        this.logger.log(
+          `Profile auto-synced for user ${userId}: ${JSON.stringify(Object.keys(patch))}`,
+        );
       }
 
       await this.prisma.contentRequest.create({
@@ -342,9 +344,9 @@ export class ChatbotService {
           uploadedById: userId,
           questionText: 'Onboarding Data Update',
           context: {
-            weight: data.weight_value || null,
-            height: data.height_value || null,
-            conditions: data.conditions || [],
+            weight: data.weight_value ?? null,
+            height: data.height_value ?? null,
+            conditions: data.conditions ?? [],
             rawExtraction: data,
           } as object,
           status: 'ML_REVIEWED',
@@ -352,10 +354,139 @@ export class ChatbotService {
       });
     } catch (err) {
       this.logger.error(
-        `Database error in saveDataToPrisma: ${(err as Error).message}`,
+        `saveDataToPrisma error: ${(err as Error).message}`,
       );
-      throw err;
+      // Non-fatal: the chatbot reply should still be returned.
     }
+  }
+
+  private buildProfilePatch(
+    user: {
+      name: string;
+      dueDate: Date | null;
+      babyBirthDate: Date | null;
+      babyName: string | null;
+      deliveryType: string | null;
+    },
+    data: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const patch: Record<string, unknown> = {};
+
+    if (
+      data.name &&
+      typeof data.name === 'string' &&
+      data.name.trim().length > 1 &&
+      (!user.name ||
+        user.name.toLowerCase().includes('guest') ||
+        user.name.toLowerCase().includes('user'))
+    ) {
+      patch.name = data.name.trim();
+    }
+
+    if (
+      data.babyName &&
+      typeof data.babyName === 'string' &&
+      !user.babyName
+    ) {
+      patch.babyName = data.babyName.trim();
+    }
+
+    const rawBirthDate =
+      (data.babyBirthDate as string | null) ??
+      (data.baby_birth_date as string | null);
+
+    if (rawBirthDate) {
+      const parsed = this.parseSafeDate(rawBirthDate);
+      if (parsed && this.isPlausibleBirthDate(parsed)) {
+        patch.babyBirthDate = parsed;
+        patch.dueDate = null;
+      }
+    }
+
+    if (!patch.babyBirthDate && !user.babyBirthDate) {
+      const rawDueDate =
+        (data.dueDate as string | null) ??
+        (data.due_date as string | null);
+
+      if (rawDueDate) {
+        const parsed = this.parseSafeDate(rawDueDate);
+        if (parsed && this.isPlausibleDueDate(parsed)) {
+          patch.dueDate = parsed;
+        }
+      } else if (data.pregnancyWeek && !user.dueDate) {
+        const week = parseInt(String(data.pregnancyWeek), 10);
+        if (!Number.isNaN(week) && week >= 4 && week <= 40) {
+          const weeksRemaining = 40 - week;
+          const dueDate = new Date();
+          dueDate.setDate(dueDate.getDate() + weeksRemaining * 7);
+          patch.dueDate = dueDate;
+        }
+      }
+    }
+
+    if (!user.deliveryType) {
+      const rawDelivery =
+        (data.deliveryType as string | null) ??
+        (data.delivery_type as string | null);
+
+      const normalized = this.normalizeDeliveryType(rawDelivery ?? '');
+      if (normalized) patch.deliveryType = normalized;
+    }
+
+    return patch;
+  }
+
+  private parseSafeDate(value: unknown): Date | null {
+    if (!value) return null;
+
+    const text = String(value).trim();
+    if (!text || text === 'null' || text === 'undefined') return null;
+
+    const date = new Date(text);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  private isPlausibleBirthDate(date: Date): boolean {
+    const now = new Date();
+    const nineMonthsAgo = new Date(now);
+    nineMonthsAgo.setMonth(nineMonthsAgo.getMonth() - 9);
+
+    return date >= nineMonthsAgo && date <= now;
+  }
+
+  private isPlausibleDueDate(date: Date): boolean {
+    const now = new Date();
+    const twoWeeksAgo = new Date(now);
+    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+    const tenMonthsAhead = new Date(now);
+    tenMonthsAhead.setMonth(tenMonthsAhead.getMonth() + 10);
+
+    return date >= twoWeeksAgo && date <= tenMonthsAhead;
+  }
+
+  private normalizeDeliveryType(raw: string): 'cesarean' | 'vaginal' | null {
+    const lower = raw.toLowerCase();
+
+    if (
+      lower.includes('cesarean') ||
+      lower.includes('caesarean') ||
+      lower.includes('c-section') ||
+      lower.includes('csection') ||
+      lower.includes('surgical')
+    ) {
+      return 'cesarean';
+    }
+
+    if (
+      lower.includes('vaginal') ||
+      lower.includes('normal delivery') ||
+      lower.includes('natural birth') ||
+      lower.includes('natural delivery')
+    ) {
+      return 'vaginal';
+    }
+
+    return null;
   }
 
   private async getRAGResponse(
