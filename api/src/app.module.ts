@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ExerciseLogsModule } from './exercise-logs/exercise-logs.module';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -15,6 +16,7 @@ import { DoctorQueueModule } from './doctor-queue/doctor-queue.module';
 import { NannyModule } from './nanny/nanny.module';
 import { AffirmationsModule } from './affirmations/affirmations.module';
 import { AppointmentsModule } from './appointments/appointments.module';
+import { FeedingLogsModule } from './feeding-logs/feeding-logs.module';
 
 @Module({
   imports: [
@@ -32,6 +34,7 @@ import { AppointmentsModule } from './appointments/appointments.module';
     NannyModule,
     AffirmationsModule,
     AppointmentsModule,
+    FeedingLogsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

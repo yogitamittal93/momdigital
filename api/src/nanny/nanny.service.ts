@@ -146,4 +146,28 @@ export class NannyService {
     const diffMs = today.getTime() - start.getTime();
     return Math.max(1, Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1);
   }
+  // ── Scored check methods ──────────────────────────────────────────────────
+
+  async saveCheck(
+    userId: string,
+    helperType: string,
+    checks: Record<string, boolean>,
+    score: number,
+    notes?: string,
+  ) {
+    const checksData = notes ? { ...checks, __notes: notes } : checks;
+    return this.prisma.trustedHelperCheck.create({
+      data: { userId, helperType, checks: checksData, score },
+    });
+  }
+
+  async getChecks(userId: string, helperType?: string, limit = 10) {
+    return this.prisma.trustedHelperCheck.findMany({
+      where: { userId, ...(helperType ? { helperType } : {}) },
+      orderBy: { checkedAt: 'desc' },
+      take: limit,
+    });
+  }
+
+
 }

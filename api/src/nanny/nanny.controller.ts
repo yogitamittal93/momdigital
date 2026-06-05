@@ -5,6 +5,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -15,6 +16,8 @@ import { NannyService } from './nanny.service';
 @UseGuards(JwtGuard)
 export class NannyController {
   constructor(private readonly nannyService: NannyService) {}
+
+  // ── Original checklist endpoints ──────────────────────────────────────────
 
   @Post('checklists')
   create(
@@ -53,6 +56,50 @@ export class NannyController {
       body.dayNumber,
       body.completed,
       body.note,
+    );
+  }
+
+  // ── Scored check endpoints (used by nanny + chef tabs) ────────────────────
+
+  /**
+   * POST /nanny/check
+   * Save a scored daily check for a nanny or chef.
+   * Body: { helperType: "nanny"|"chef", checks: Record<string,boolean>, score: number, notes?: string }
+   */
+  @Post('check')
+  saveCheck(
+    @Req() req: { user: { userId: string } },
+    @Body()
+    body: {
+      helperType: string;
+      checks: Record<string, boolean>;
+      score: number;
+      notes?: string;
+    },
+  ) {
+    return this.nannyService.saveCheck(
+      req.user.userId,
+      body.helperType,
+      body.checks,
+      body.score,
+      body.notes,
+    );
+  }
+
+  /**
+   * GET /nanny/check?helperType=nanny&limit=10
+   * Fetch recent saved checks for the authenticated user.
+   */
+  @Get('check')
+  getChecks(
+    @Req() req: { user: { userId: string } },
+    @Query('helperType') helperType?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.nannyService.getChecks(
+      req.user.userId,
+      helperType,
+      limit ? parseInt(limit, 10) : 10,
     );
   }
 }

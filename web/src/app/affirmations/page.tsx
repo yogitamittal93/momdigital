@@ -64,8 +64,7 @@ export default function AffirmationsPage() {
     setAffirmationError(null);
 
     try {
-      const payload = `Create a supportive affirmation for someone who says: ${customPrompt.trim()}`;
-      const data = (await api.post("/chatbot/message", { message: payload })) as Record<string, unknown>;
+      const data = (await api.post("/affirmations/generate", { prompt: customPrompt.trim() })) as Record<string, unknown>;
       const reply = parseReply(data);
       setCustomAffirmation(reply || "Your words are valid, and you are enough.");
       setCustomPrompt("");

@@ -25,6 +25,17 @@ const AFFIRMATIONS: Record<string, string[]> = {
 
 @Injectable()
 export class AffirmationsService {
+  generateCustomAffirmation(prompt: string) {
+    const cleanedPrompt = prompt.trim().replace(/\s+/g, ' ');
+
+    return {
+      message:
+        `When you say "${cleanedPrompt}", I want you to remember that you are doing enough, your body is healing, and your love matters every single day. Be gentle with yourself today and trust that this moment will pass.`,
+      title: 'Personalized Affirmation',
+      stage: 'postpartum',
+    };
+  }
+
   getDailyAffirmation(user: {
     name?: string;
     dueDate?: Date | null;
