@@ -16,7 +16,9 @@ api/node_modules/
 api/dist/
 api/coverage/
 api/.prisma/
-api/prisma/migrations/*.sql
+# Migration SQL files are intentionally committed — do NOT ignore them
+# # Migration files MUST be committed — do not ignore them
+# api/prisma/migrations/*.sql
 # Keep migrations but ignore the sqlite db if you ever use it locally
 api/*.db
 api/*.db-journal
@@ -32,7 +34,7 @@ web/next-env.d.ts
 
 ml_service/node_modules/
 ml_service/dist/
-ml_service/data/*
+ml_service/data/
 ml_service/.env
 ml_service/.env.*
 ml_service/.pytest_cache/

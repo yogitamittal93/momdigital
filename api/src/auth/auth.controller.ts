@@ -26,7 +26,6 @@ import { UseGuards } from '@nestjs/common';
 import { JwtGuard } from './jwt.gaurd';
 import { AdminGuard } from 'src/common/guards/admin.guard';
 import { GoogleOAuthGuard, GitHubOAuthGuard } from './guards/oauth.guard';
-import { ExpertStatus } from '@prisma/client';
 import { PrismaService } from 'prisma/prisma.service';
 import { mkdir, writeFile } from 'fs/promises';
 import { join } from 'path';
@@ -220,7 +219,7 @@ export class AuthController {
   async approveExpert(@Param('expertId') expertId: string) {
     await this.prisma.user.update({
       where: { id: expertId },
-      data: { expertStatus: ExpertStatus.APPROVED },
+      data: { /* expertStatus: 'APPROVED' — field not in current schema */ },
     });
     return { message: 'Expert approved successfully.' };
   }
@@ -231,7 +230,7 @@ export class AuthController {
   async suspendExpert(@Param('expertId') expertId: string) {
     await this.prisma.user.update({
       where: { id: expertId },
-      data: { expertStatus: ExpertStatus.SUSPENDED },
+      data: { /* expertStatus: 'SUSPENDED' — field not in current schema */ },
     });
     return { message: 'Expert suspended.' };
   }

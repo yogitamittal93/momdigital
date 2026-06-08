@@ -1,4 +1,4 @@
-import api from "@/lib/api";
+import { api } from "@/lib/api-client";
 import {
   ScanReport,
   ScanReportShare,
@@ -6,8 +6,9 @@ import {
 } from "@/types/scan-report.types";
 
 export async function listScanReports(): Promise<ScanReport[]> {
-  const res = await api.get<ScanReport[]>("/scan-reports");
-  return res.data;
+  const data = await api.get("/scan-reports");
+  // Ensure we always return an array regardless of response shape
+  return Array.isArray(data) ? data : (data as any)?.data ?? [];
 }
 
 export async function uploadScanReport(
@@ -20,15 +21,29 @@ export async function uploadScanReport(
   if (payload.notes) formData.append("notes", payload.notes);
   if (payload.capturedAt) formData.append("capturedAt", payload.capturedAt);
 
-  const res = await api.post<ScanReport>("/scan-reports", formData, {
-    headers: { "Content-Type": "multipart/form-data" },
-    onUploadProgress: (evt) => {
-      if (!evt.total || !onProgress) return;
-      onProgress(Math.round((evt.loaded / evt.total) * 100));
-    },
-  });
+  // Use fetch directly for multipart + progress tracking
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${process.env.NEXT_PUBLIC_API_URL}/scan-reports`);
+    xhr.withCredentials = true;
 
-  return res.data;
+    if (onProgress) {
+      xhr.upload.onprogress = (evt) => {
+        if (evt.lengthComputable) onProgress(Math.round((evt.loaded / evt.total) * 100));
+      };
+    }
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try { resolve(JSON.parse(xhr.responseText)); }
+        catch { reject(new Error("Invalid response")); }
+      } else {
+        reject(new Error(`Upload failed: ${xhr.status}`));
+      }
+    };
+    xhr.onerror = () => reject(new Error("Network error"));
+    xhr.send(formData);
+  });
 }
 
 export async function deleteScanReport(reportId: string): Promise<void> {
@@ -39,11 +54,13 @@ export async function downloadScanReport(
   reportId: string,
   fallbackName: string,
 ): Promise<void> {
-  const res = await api.get<Blob>(`/scan-reports/${reportId}/file`, {
-    responseType: "blob",
+  const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api";
+  const res = await fetch(`${apiBase}/scan-reports/${reportId}/file`, {
+    credentials: "include",
   });
-
-  const blobUrl = window.URL.createObjectURL(res.data);
+  if (!res.ok) throw new Error("Download failed");
+  const blob = await res.blob();
+  const blobUrl = window.URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = blobUrl;
   anchor.download = fallbackName;
@@ -54,19 +71,15 @@ export async function downloadScanReport(
 }
 
 export async function listReportShares(reportId: string): Promise<ScanReportShare[]> {
-  const res = await api.get<ScanReportShare[]>(`/scan-reports/${reportId}/shares`);
-  return res.data;
+  const data = await api.get(`/scan-reports/${reportId}/shares`);
+  return Array.isArray(data) ? data : (data as any)?.data ?? [];
 }
 
 export async function createReportShare(
   reportId: string,
   payload: { targetEmail: string; permission: "view" | "download"; expiresAt?: string },
 ): Promise<ScanReportShare> {
-  const res = await api.post<ScanReportShare>(
-    `/scan-reports/${reportId}/shares`,
-    payload,
-  );
-  return res.data;
+  return api.post(`/scan-reports/${reportId}/shares`, payload) as Promise<ScanReportShare>;
 }
 
 export async function revokeReportShare(

@@ -1,4 +1,4 @@
-import api from "../lib/api";
+import { api } from "@/lib/api-client";
 
 export const loginUser = (data: {
   email: string;
@@ -20,5 +20,5 @@ export const updateProfile = (data: {
   dueDate?: string;
   babyBirthDate?: string;
   avatarUrl?: string;
-}) => api.patch("/auth/me", data).then((res) => res.data);
+}) => api.patch("/auth/me", data);
 export const fetchSessions = () => api.get("/auth/sessions");

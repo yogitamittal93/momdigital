@@ -185,9 +185,10 @@ export class ScanReportsService {
     return this.prisma.scanReportShare.create({
       data: {
         reportId,
+        token: randomUUID(),
         targetEmail: dto.targetEmail.toLowerCase(),
         permission: dto.permission ?? 'view',
-        expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : undefined,
+        expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       },
       select: {
         id: true,

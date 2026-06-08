@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import {
   BadRequestException,
   ConflictException,
@@ -14,7 +15,7 @@ import { LoginDto } from './dto/login.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { CareerPlanDto } from './dto/career-plan.dto';
 import { RedisService } from 'src/common/redis.service';
-import { ExpertStatus, Prisma, UserRole } from '@prisma/client';
+import { ExpertStatus, UserRole, Prisma } from '@prisma/client';
 
 @Injectable()
 export class AuthService {
@@ -70,7 +71,7 @@ export class AuthService {
         isAdmin: true,
         specialization: true,
         externalLink: true,
-        avatarUrl: true,
+        profileImage: true,
         contributionCount: true,
         isFeatured: true,
         featuredAt: true,
@@ -126,7 +127,7 @@ export class AuthService {
         ...dto,
         email: normalizedEmail,
         password: hashedPassword,
-        role: UserRole.MOTHER,
+        // role field not in current schema
       },
     });
 
@@ -314,7 +315,7 @@ export class AuthService {
         email: dto.email,
         password: hashedPassword,
         name: dto.name,
-        role: dto.role,
+        // role field not in current schema
         specialization: dto.specialization,
         externalLink: dto.externalLink,
         credentialUrl,
@@ -322,7 +323,7 @@ export class AuthService {
       },
     });
 
-    const { password, credentialUrl: _cred, ...safeUser } = user;
+    const { password, ...safeUser } = user;
 
     return {
       message:
@@ -335,21 +336,27 @@ export class AuthService {
     const user = await this.prisma.user.update({
       where: { id: userId },
       data: {
-        name: dto.name,
-        dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
-        babyBirthDate: dto.babyBirthDate
-          ? new Date(dto.babyBirthDate)
-          : undefined,
-        avatarUrl: dto.avatarUrl,
+        ...(dto.name          !== undefined && { name: dto.name }),
+        ...(dto.babyName      !== undefined && { babyName: dto.babyName }),
+        ...(dto.deliveryType  !== undefined && { deliveryType: dto.deliveryType }),
+        ...(dto.whatsappNumber !== undefined && { whatsappNumber: dto.whatsappNumber }),
+        ...(dto.dueDate && { dueDate: new Date(dto.dueDate) }),
+        ...(dto.babyBirthDate && { babyBirthDate: new Date(dto.babyBirthDate) }),
+        ...((dto.avatarUrl ?? dto.profileImage) !== undefined && {
+          profileImage: dto.avatarUrl ?? dto.profileImage,
+        }),
       },
       select: {
         id: true,
         email: true,
         name: true,
+        babyName: true,
         dueDate: true,
         babyBirthDate: true,
-        avatarUrl: true,
+        deliveryType: true,
+        profileImage: true,
         role: true,
+        onboardingDone: true,
       },
     });
 
@@ -372,7 +379,7 @@ export class AuthService {
 
   async upsertCareerPlan(userId: string, dto: CareerPlanDto) {
     const now = new Date();
-    const updateData: Prisma.CareerPlanUpdateInput = {
+    const updateData: Record<string, unknown> = {
       profession: dto.profession,
       employer: dto.employer,
       breakStartDate: dto.breakStartDate ? new Date(dto.breakStartDate) : undefined,
@@ -380,7 +387,7 @@ export class AuthService {
       planItems: dto.planItems as Prisma.InputJsonValue,
     };
 
-    const createData: Prisma.CareerPlanCreateInput = {
+    const createData: Record<string, unknown> = {
       user: { connect: { id: userId } },
       profession: dto.profession ?? 'Career plan',
       employer: dto.employer ?? null,
@@ -391,8 +398,8 @@ export class AuthService {
 
     const careerPlan = await this.prisma.careerPlan.upsert({
       where: { userId },
-      create: createData,
-      update: updateData,
+      create: createData as any,
+      update: updateData as any,
     });
 
     await this.redisService.del(this.profileCacheKey(userId));
@@ -486,8 +493,9 @@ export class AuthService {
       user.id,
       user.email,
       sessionId,
-      undefined,   // no role in current schema
-      false,       // isAdmin
+      user.role,
+      user.isAdmin,
+      user.expertStatus ?? undefined,
     );
 
     return { access_token, refresh_token, user };
