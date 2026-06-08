@@ -7,34 +7,122 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ─────────────────────────────────────────────
-// USER — core identity + pregnancy/postpartum profile
-// ─────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
+// ENUMS
+// ═══════════════════════════════════════════════════════════════════
+
+enum UserRole {
+  MOTHER             // core user — pregnant or postpartum
+  MBBS               // medical doctor (follows Telemedicine Guidelines 2020)
+  AYURVEDA           // registered Ayurvedic vaidya
+  NUTRITIONIST       // certified dietitian / nutritionist
+  CHEF               // postpartum meal specialist
+  YOGA_TRAINER       // certified yoga instructor
+  WORKOUT_TRAINER    // postpartum fitness trainer
+  DANCE_TEACHER      // postpartum dance / movement coach
+  ADMIN              // platform administrator
+}
+
+enum ExpertStatus {
+  PENDING_APPROVAL   // registered, awaiting admin verification
+  APPROVED           // verified — can answer questions / host sessions
+  SUSPENDED          // temporarily disabled by admin
+  REJECTED           // application rejected
+}
+
+enum DoctorSpecialty {
+  OBGYN              // Obstetrics & Gynaecology
+  PEDIATRICIAN       // Child health
+  GENERAL_PHYSICIAN  // General medicine
+  AYURVEDA_VAIDYA    // Ayurvedic medicine
+  NUTRITIONIST       // Clinical nutrition
+}
+
+enum ContentRequestType {
+  MEDICAL_SCAN       // uploaded scan/report for doctor review
+  DIETARY_QUERY      // nutrition question → nutritionist
+  RECIPE_REVIEW      // meal / recipe check → chef or nutritionist
+  EXERCISE_QUERY     // fitness/yoga question → trainer
+  CROSS_DISCIPLINE   // needs multiple expert types
+  GENERAL_QUESTION   // AI handles, optionally queued if flagged
+}
+
+enum ReviewStatus {
+  PENDING            // waiting for expert action
+  ML_REVIEWED        // AI answered, no expert needed
+  APPROVED           // expert reviewed and approved
+  FLAGGED            // expert flagged as needs attention
+  NEEDS_MORE_INFO    // expert asked clarifying question
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// USER — single table for all roles (mothers + all expert types)
+// ═══════════════════════════════════════════════════════════════════
+
 model User {
-  id            String    @id @default(uuid())
-  email         String    @unique
-  password      String?
+  id              String        @id @default(uuid())
+  email           String        @unique
+  password        String?       // null for OAuth-only accounts
 
   // Display
-  name          String
-  profileImage  String?   // URL to uploaded avatar
+  name            String
+  profileImage    String?       // avatar URL
+  avatarUrl       String?       // alias — kept for code compatibility
 
-  // Pregnancy / postpartum phase
+  // Role & approval
+  role            UserRole      @default(MOTHER)
+  expertStatus    ExpertStatus? // null for MOTHERs
+  isAdmin         Boolean       @default(false)
+
+  // Expert profile fields (null for MOTHERs)
+  specialization  String?       // e.g. "Postpartum Nutrition"
+  externalLink    String?       // personal website / LinkedIn
+  credentialUrl   String?       // uploaded credential PDF
+  registrationNo  String?       // MCI/NMC/NIN registration number (required for MBBS)
+  languagesSpoken String[]      // ["Hindi", "English", "Punjabi"]
+
+  // Featured / gamification
+  isFeatured      Boolean       @default(false)
+  featuredAt      DateTime?
+  contributionCount Int         @default(0)  // approved reviews / published sessions
+
+  // Monthly question quota for free tier
+  // null = unlimited (for experts/admins)
+  monthlyQuestionLimit Int?     @default(20)
+  questionsUsedThisMonth Int    @default(0)
+  quotaResetAt    DateTime?     // when the monthly counter resets
+
+  // Mother-specific fields
   dueDate         DateTime?
   babyBirthDate   DateTime?
   babyName        String?
-  deliveryType    String?   // "vaginal" | "cesarean" — affects recovery exercises
+  deliveryType    String?       // "vaginal" | "cesarean"
+  onboardingDone  Boolean       @default(false)
 
-  // Onboarding completion flag
-  onboardingDone  Boolean   @default(false)
+  // WhatsApp for session link delivery (yoga/dance live sessions)
+  whatsappNumber  String?
 
-  // Relations
+  // Relations — mother
   exerciseLogs        ExerciseLog[]
   feedingLogs         FeedingLog[]
   trustedHelperChecks TrustedHelperCheck[]
   appointments        Appointment[]
   chatMessages        ChatMessage[]
+  contentRequests     ContentRequest[]    @relation("UploadedBy")
+  piiAccessLogs       PiiAuditLog[]       @relation("ExpertPiiAccess")
+
+  // Relations — expert
+  expertAssignments   ExpertAssignment[]  @relation("AssignedExpert")
+  trainerContent      TrainerContent[]
+  communityPosts      CommunityPost[]
+  postComments        PostComment[]
+  liveSessions        LiveSession[]
+  doctorProfile       DoctorProfile?
+
+  // Auth
+  sessions            Session[]
   oauthAccounts       OAuthAccount[]
+  careerPlan          CareerPlan?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -42,9 +130,70 @@ model User {
   @@map("users")
 }
 
-// ─────────────────────────────────────────────
-// CHAT — maternity assistant messages
-// ─────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
+// AUTH — sessions + OAuth
+// ═══════════════════════════════════════════════════════════════════
+
+model Session {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  refreshToken  String   // bcrypt hashed
+  userAgent     String?
+  ipAddress     String?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model OAuthAccount {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  provider     String   // "google" | "github"
+  providerId   String
+  email        String?
+  accessToken  String?
+  refreshToken String?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([provider, providerId])
+  @@index([userId])
+  @@map("oauth_accounts")
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// CAREER PLAN — for working mothers on maternity break
+// ═══════════════════════════════════════════════════════════════════
+
+model CareerPlan {
+  id             String   @id @default(uuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  profession     String
+  employer       String?
+  breakStartDate DateTime
+  returnDate     DateTime
+  planItems      Json     @default("{}")  // flexible milestones
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("career_plans")
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// CHAT — maternity AI assistant messages
+// ═══════════════════════════════════════════════════════════════════
+
 model ChatMessage {
   id        String   @id @default(uuid())
   userId    String
@@ -53,9 +202,7 @@ model ChatMessage {
   role      String   // "user" | "assistant"
   content   String
 
-  // Structured data extracted from this message (if any)
-  // e.g. { "babyBirthDate": "2025-03-01", "deliveryType": "cesarean" }
-  extractedData Json?
+  extractedData Json? // auto-synced profile data from NER
 
   createdAt DateTime @default(now())
 
@@ -63,100 +210,378 @@ model ChatMessage {
   @@map("chat_messages")
 }
 
-// ─────────────────────────────────────────────
-// EXERCISE LOG — body recovery tracking
-// ─────────────────────────────────────────────
-model ExerciseLog {
-  id          String   @id @default(uuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+// ═══════════════════════════════════════════════════════════════════
+// CONTENT REQUESTS — questions routed to experts
+// ═══════════════════════════════════════════════════════════════════
 
-  exerciseId  String   // e.g. "15min-walk", "pelvic-floor", "kegel"
-  phase       String   // "pregnancy" | "postpartum"
+model ContentRequest {
+  id           String             @id @default(uuid())
+  uploadedById String
+  uploadedBy   User               @relation("UploadedBy", fields: [uploadedById], references: [id])
+
+  requestType  ContentRequestType
+  questionText String?
+  context      Json?              // structured context from NER / user profile
+  scanReportId String?
+  scanReport   ScanReport?        @relation(fields: [scanReportId], references: [id])
+
+  // Routing
+  routedRoles  UserRole[]         // which expert roles were targeted
+  mlResponse   String?            // AI's answer
+  mlConfidence Float?             // AI confidence score
+  status       ReviewStatus       @default(PENDING)
+
+  // Relations
+  assignments  ExpertAssignment[]
+  doctorReview DoctorReview?
+
+  createdAt    DateTime           @default(now())
+
+  @@index([uploadedById])
+  @@map("content_requests")
+}
+
+model ExpertAssignment {
+  id        String       @id @default(uuid())
+  requestId String
+  request   ContentRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  expertId  String
+  expert    User         @relation("AssignedExpert", fields: [expertId], references: [id])
+
+  status      ReviewStatus @default(PENDING)
+  expertNote  String?
+  piViewedAt  DateTime?    // when expert accessed PII (audit)
+  reviewedAt  DateTime?
+
+  createdAt   DateTime     @default(now())
+
+  @@unique([requestId, expertId])
+  @@index([expertId])
+  @@map("expert_assignments")
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SCAN REPORTS — medical document uploads
+// ═══════════════════════════════════════════════════════════════════
+
+model ScanReport {
+  id           String   @id @default(uuid())
+  userId       String
+
+  originalName String
+  storedName   String
+  mimeType     String
+  sizeBytes    Int
+  checksum     String?  // SHA-256 for dedup
+  category     String?  // "ultrasound" | "blood_test" | "urine_test" | "other"
+  notes        String?  // user's notes about this scan
+  capturedAt   DateTime? // when the scan was taken (from DICOM or user input)
+
+  // Sharing
+  shareToken   String?  @unique
+  shareExpiry  DateTime?
+
+  contentRequests ContentRequest[]
+  shares          ScanReportShare[]
+
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+  @@map("scan_reports")
+}
+
+model ScanReportShare {
+  id          String   @id @default(uuid())
+  reportId    String
+  report      ScanReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  sharedWithEmail String?
+  targetEmail     String?   // alias used in service code
+  permission      String    @default("view")  // "view" | "download"
+  token           String    @unique
+  expiresAt       DateTime
+  accessedAt      DateTime?
+  revokedAt       DateTime? // set when share is revoked
+
+  createdAt   DateTime @default(now())
+
+  @@map("scan_report_shares")
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// DOCTOR QUEUE — medical review pipeline
+// Follows Telemedicine Practice Guidelines India 2020:
+//   - Only registered doctors (valid registrationNo) can approve
+//   - No prescriptions via chat
+//   - All interactions logged for audit
+// ═══════════════════════════════════════════════════════════════════
+
+model DoctorProfile {
+  id                  String          @id @default(uuid())
+  userId              String          @unique
+  user                User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  specialization      DoctorSpecialty
+  registrationNo      String?         // MCI/NMC number — required before APPROVED status
+  hospitalAffiliation String?
+  yearsExperience     Int?
+  isAvailable         Boolean         @default(false)  // doctor toggles this
+  avgResponseHours    Int?            @default(24)
+  reviewsCompleted    Int             @default(0)
+
+  reviews             DoctorReview[]
+
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  @@map("doctor_profiles")
+}
+
+model DoctorReview {
+  id              String        @id @default(uuid())
+  doctorProfileId String
+  doctorProfile   DoctorProfile @relation(fields: [doctorProfileId], references: [id])
+  contentRequestId String       @unique
+  contentRequest  ContentRequest @relation(fields: [contentRequestId], references: [id])
+
+  originalAnswer  String        // AI's answer that was flagged
+  reviewedAnswer  String?       // doctor's edited/approved answer
+  doctorNote      String?       // internal note (not shown to user)
+  status          String        @default("PENDING")  // PENDING | APPROVED | FLAGGED
+  reviewedAt      DateTime?
+
+  createdAt       DateTime      @default(now())
+
+  @@index([doctorProfileId])
+  @@map("doctor_reviews")
+}
+
+// Doctor-verified answer cache — prevents re-routing same question
+model ApprovedAnswer {
+  id           String   @id @default(uuid())
+  questionHash String   @unique  // MD5 of normalised question
+  question     String
+  answer       String
+  approvedBy   String   // doctorProfileId
+  category     String
+  sources      String[]
+  useCount     Int      @default(0)
+
+  createdAt    DateTime @default(now())
+  approvedAt   DateTime @default(now())
+
+  @@map("approved_answers")
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// TRAINER CONTENT — yoga / fitness / nutrition articles & videos
+// ═══════════════════════════════════════════════════════════════════
+
+model TrainerContent {
+  id          String   @id @default(uuid())
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id])
+
+  title       String
+  body        String
+  targetGroup String?  // "pregnancy" | "postpartum_early" | "postpartum_active"
+  mediaUrl    String?  // video embed URL or image
+  isPublished Boolean  @default(false)
+  publishedAt DateTime?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([authorId])
+  @@map("trainer_content")
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// LIVE SESSIONS — yoga / dance / fitness sessions
+// Phase 1: WhatsApp link delivery
+// Phase 2: Jitsi embed (add meetingUrl field, set sessionType = "jitsi")
+// ═══════════════════════════════════════════════════════════════════
+
+model LiveSession {
+  id            String   @id @default(uuid())
+  hostId        String
+  host          User     @relation(fields: [hostId], references: [id])
+
+  title         String
+  description   String?
+  sessionType   String   @default("whatsapp")  // "whatsapp" | "jitsi" | "youtube"
+  scheduledAt   DateTime
+  durationMins  Int      @default(60)
+  maxAttendees  Int?
+
+  // Delivery
+  meetingUrl    String?  // Jitsi/YouTube URL (Phase 2)
+  // WhatsApp link sent via webhook when user registers (Phase 1)
+
+  isPublished   Boolean  @default(false)
+  targetGroup   String?  // "pregnancy" | "postpartum"
+
+  registrations SessionRegistration[]
+
+  createdAt     DateTime @default(now())
+
+  @@index([hostId])
+  @@map("live_sessions")
+}
+
+model SessionRegistration {
+  id        String      @id @default(uuid())
+  sessionId String
+  session   LiveSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId    String
+
+  whatsappSent  Boolean  @default(false)
+  reminderSent  Boolean  @default(false)
+  registeredAt  DateTime @default(now())
+
+  @@unique([sessionId, userId])
+  @@map("session_registrations")
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// COMMUNITY — posts and comments
+// ═══════════════════════════════════════════════════════════════════
+
+model CommunityPost {
+  id       String   @id @default(uuid())
+  authorId String
+  author   User     @relation(fields: [authorId], references: [id])
+
+  content  String
+  category String?  // "pregnancy" | "postpartum" | "nutrition" | "general"
+
+  likes    PostLike[]
+  comments PostComment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([authorId])
+  @@map("community_posts")
+}
+
+model PostLike {
+  id     String        @id @default(uuid())
+  postId String
+  post   CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId String
+
+  @@unique([postId, userId])
+  @@map("post_likes")
+}
+
+model PostComment {
+  id       String        @id @default(uuid())
+  postId   String
+  post     CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId String
+  author   User          @relation(fields: [authorId], references: [id])
+
+  content  String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([postId])
+  @@map("post_comments")
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// COMPLIANCE & AUDIT
+// ═══════════════════════════════════════════════════════════════════
+
+// Immutable log of every time an expert accessed a mother's PII
+// Required for Telemedicine Guidelines 2020 compliance
+model PiiAuditLog {
+  id        String   @id @default(uuid())
+  expertId  String
+  expert    User     @relation("ExpertPiiAccess", fields: [expertId], references: [id])
+  requestId String
+
+  viewedAt  DateTime @default(now())
+
+  @@index([expertId])
+  @@map("pii_audit_logs")
+}
+
+// Key-value app config managed by admin (replaces hardcoded env-only config)
+model AppConfig {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("app_config")
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// MOTHER TRACKING — recovery, feeding, appointments
+// ═══════════════════════════════════════════════════════════════════
+
+model ExerciseLog {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  exerciseId   String
+  phase        String   // "pregnancy" | "postpartum"
   durationMins Int?
-  completedAt DateTime @default(now())
+  completedAt  DateTime @default(now())
 
   @@index([userId])
   @@map("exercise_logs")
 }
 
-// ─────────────────────────────────────────────
-// FEEDING LOG — childcare tracking
-// ─────────────────────────────────────────────
 model FeedingLog {
-  id        String   @id @default(uuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  type      String   // "breast-left" | "breast-right" | "bottle" | "formula"
-  startedAt DateTime
+  type         String   // "breast-left" | "breast-right" | "bottle" | "formula"
+  startedAt    DateTime
   durationMins Int?
-  amountMl  Int?
-  notes     String?
+  amountMl     Int?
+  notes        String?
 
-  createdAt DateTime @default(now())
+  createdAt    DateTime @default(now())
 
   @@index([userId])
   @@map("feeding_logs")
 }
 
-// ─────────────────────────────────────────────
-// TRUSTED HELPER CHECK — nanny / chef scoring
-// ─────────────────────────────────────────────
 model TrustedHelperCheck {
-  id          String   @id @default(uuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  helperType  String   // "nanny" | "chef"
-  checks      Json     // { handWashing: true, hairTied: false, ... }
-  score       Int      // 0–100
-  checkedAt   DateTime @default(now())
+  helperType String   // "nanny" | "chef"
+  checks     Json
+  score      Int
+  checkedAt  DateTime @default(now())
 
   @@index([userId])
   @@map("trusted_helper_checks")
 }
 
-// ─────────────────────────────────────────────
-// APPOINTMENT — doctor / clinic bookings
-// ─────────────────────────────────────────────
 model Appointment {
-  id          String   @id @default(uuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  title       String
-  doctorName  String?
-  location    String?
-  dateTime    DateTime
-  notes       String?
-  reminded    Boolean  @default(false)
+  title      String
+  doctorName String?
+  location   String?
+  dateTime   DateTime
+  notes      String?
+  reminded   Boolean  @default(false)
 
-  createdAt   DateTime @default(now())
+  createdAt  DateTime @default(now())
 
   @@index([userId])
   @@map("appointments")
-}
-
-// ─────────────────────────────────────────────
-// OAUTH ACCOUNT — linked social login providers
-// One user can have Google + GitHub + email/password
-// ─────────────────────────────────────────────
-model OAuthAccount {
-  id           String   @id @default(uuid())
-  userId       String
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  provider     String   // "google" | "github"
-  providerId   String   // the user's ID from that provider
-  email        String?  // provider email (may differ from user email)
-  accessToken  String?  // store if you need to call provider APIs later
-  refreshToken String?
-
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  @@unique([provider, providerId])   // one account per provider per user
-  @@index([userId])
-  @@map("oauth_accounts")
 }
