@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { fetchMe, type ApiUser } from "@/lib/api-client";
 
 export function useUserProfile() {
@@ -8,12 +8,22 @@ export function useUserProfile() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoading(true);
     fetchMe()
       .then((u) => setUser(u))
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
 
-  return { user, loading, error, setUser };
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  /** Call this after a PATCH /auth/me to re-sync local state. */
+  const refreshUser = useCallback(() => {
+    load();
+  }, [load]);
+
+  return { user, loading, error, setUser, refreshUser };
 }

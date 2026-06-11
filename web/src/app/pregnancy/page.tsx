@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
-import { Heart, Activity, TrendingUp, Plus } from "lucide-react";
+import { useState, useCallback, useMemo, useEffect } from "react";
+import { Heart, Activity, TrendingUp, Plus, ShieldAlert } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -14,6 +14,15 @@ import {
   getDaysUntilDue,
   formatTrimesterLabel,
 } from "@/lib/pregnancy";
+import { api } from "@/lib/api-client";
+
+function classifyBP(sys: number, dia: number) {
+  if (sys > 180 || dia > 120) return { label: "Crisis", color: "text-destructive bg-destructive/10 border-destructive/20" };
+  if (sys >= 140 || dia >= 90) return { label: "Hypertension Stage 2", color: "text-red-500 bg-red-500/10 border-red-500/20" };
+  if ((sys >= 130 && sys <= 139) || (dia >= 80 && dia <= 89)) return { label: "Hypertension Stage 1", color: "text-orange-500 bg-orange-500/10 border-orange-500/20" };
+  if (sys >= 120 && sys <= 129 && dia < 80) return { label: "Elevated", color: "text-yellow-600 bg-yellow-600/10 border-yellow-600/20" };
+  return { label: "Normal", color: "text-green-600 bg-green-600/10 border-green-600/20" };
+}
 
 export default function PregnancyTracker() {
   const { user } = useUserProfile();
@@ -31,23 +40,210 @@ export default function PregnancyTracker() {
     : "Add your due date to personalize this tracker";
   const kickGoal = 10;
 
-  const [kicks, setKicks] = useState(12);
+  const [kicks, setKicks] = useState(0);
   const [logging, setLogging] = useState(false);
   const [lastKickTime, setLastKickTime] = useState<string | null>(null);
 
-  const milestones = [
-    { week: 20, title: "Anatomy Scan", completed: true, date: "Feb 15, 2026" },
-    { week: 24, title: "Glucose Test", completed: false, date: "Mar 28, 2026" },
-    { week: 28, title: "Third Trimester Begins", completed: false, date: "Apr 18, 2026" },
-  ];
+  const [completedMilestones, setCompletedMilestones] = useState<{ week: number; title: string }[]>([]);
+  const [togglingMilestone, setTogglingMilestone] = useState<string | null>(null);
 
-  const handleLogKick = useCallback(() => {
+  const [bpLogs, setBpLogs] = useState<any[]>([]);
+  const [sysInput, setSysInput] = useState("");
+  const [diaInput, setDiaInput] = useState("");
+  const [pulseInput, setPulseInput] = useState("");
+  const [loggingBp, setLoggingBp] = useState(false);
+  const [bpError, setBpError] = useState("");
+
+  const [weightLogs, setWeightLogs] = useState<any[]>([]);
+  const [weightInput, setWeightInput] = useState("");
+  const [loggingWeight, setLoggingWeight] = useState(false);
+  const [activeMood, setActiveMood] = useState<string | null>(null);
+
+  // Fetch completed milestones, blood pressure, weight, mood, and kicks logs
+  useEffect(() => {
+    if (!user) return;
+    api.get("/pregnancy-milestones")
+      .then((data: any) => {
+        if (data && Array.isArray(data)) setCompletedMilestones(data);
+      })
+      .catch(() => {});
+
+    api.get("/blood-pressure")
+      .then((data: any) => {
+        if (data && Array.isArray(data)) setBpLogs(data);
+      })
+      .catch(() => {});
+
+    api.get("/weight-logs")
+      .then((data: any) => {
+        if (data && Array.isArray(data)) setWeightLogs(data);
+      })
+      .catch(() => {});
+
+    api.get("/mood-logs/today")
+      .then((data: any) => {
+        if (data && data.mood) setActiveMood(data.mood);
+      })
+      .catch(() => {});
+
+    const todayStr = new Date().toISOString().slice(0, 10);
+    api.get(`/kick-logs?date=${todayStr}`)
+      .then((data: any) => {
+        if (data && typeof data.count === 'number') {
+          setKicks(data.count);
+          if (data.loggedAt) {
+            setLastKickTime(new Date(data.loggedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+          }
+        } else {
+          setKicks(0);
+        }
+      })
+      .catch(() => setKicks(0));
+  }, [user]);
+
+  const handleToggleMilestone = useCallback(async (week: number, title: string) => {
+    if (!user) return;
+    const key = `${week}-${title}`;
+    setTogglingMilestone(key);
+    try {
+      const res = await api.post("/pregnancy-milestones/toggle", { week, title }) as { completed: boolean };
+      setCompletedMilestones((prev) => {
+        if (res.completed) {
+          return [...prev, { week, title }];
+        } else {
+          return prev.filter((cm) => !(cm.week === week && cm.title === title));
+        }
+      });
+    } catch {
+      // ignore
+    } finally {
+      setTogglingMilestone(null);
+    }
+  }, [user]);
+
+  const milestones = useMemo(() => {
+    const defaultMilestones = [
+      { week: 20, title: "Anatomy Scan" },
+      { week: 24, title: "Glucose Test" },
+      { week: 28, title: "Third Trimester Begins" },
+    ];
+    return defaultMilestones.map((m) => {
+      const isCompleted = completedMilestones.some(
+        (cm) => cm.week === m.week && cm.title === m.title
+      );
+      
+      let milestoneDateStr = "Date not set";
+      if (user?.dueDate) {
+        const due = new Date(user.dueDate);
+        const conception = new Date(due);
+        conception.setDate(conception.getDate() - 280);
+        const msDate = new Date(conception);
+        msDate.setDate(msDate.getDate() + m.week * 7);
+        milestoneDateStr = msDate.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        });
+      } else {
+        if (m.week === 20) milestoneDateStr = "Feb 15, 2026";
+        else if (m.week === 24) milestoneDateStr = "Mar 28, 2026";
+        else if (m.week === 28) milestoneDateStr = "Apr 18, 2026";
+      }
+
+      return {
+        ...m,
+        completed: isCompleted,
+        date: milestoneDateStr,
+      };
+    });
+  }, [completedMilestones, user?.dueDate]);
+
+  const handleLogBp = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    const sys = parseInt(sysInput, 10);
+    const dia = parseInt(diaInput, 10);
+    const pulse = pulseInput ? parseInt(pulseInput, 10) : undefined;
+
+    if (isNaN(sys) || sys < 50 || sys > 250) {
+      setBpError("Please enter a valid Systolic value (50-250 mmHg)");
+      return;
+    }
+    if (isNaN(dia) || dia < 30 || dia > 180) {
+      setBpError("Please enter a valid Diastolic value (30-180 mmHg)");
+      return;
+    }
+    if (pulse !== undefined && (isNaN(pulse) || pulse < 30 || pulse > 200)) {
+      setBpError("Please enter a valid Pulse value (30-200 bpm)");
+      return;
+    }
+
+    setBpError("");
+    setLoggingBp(true);
+    try {
+      const newLog = await api.post("/blood-pressure", {
+        systolic: sys,
+        diastolic: dia,
+        pulse,
+      });
+      setBpLogs((prev) => [newLog, ...prev]);
+      setSysInput("");
+      setDiaInput("");
+      setPulseInput("");
+    } catch (err: any) {
+      setBpError(err.message || "Failed to log blood pressure");
+    } finally {
+      setLoggingBp(false);
+    }
+  }, [sysInput, diaInput, pulseInput, user]);
+
+  const handleLogKick = useCallback(async () => {
+    if (!user) return;
     setLogging(true);
-    setKicks((k) => k + 1);
-    setLastKickTime(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
-    // Simulate brief haptic feedback delay
-    setTimeout(() => setLogging(false), 600);
-  }, []);
+    const nextKicks = kicks + 1;
+    setKicks(nextKicks);
+    const now = new Date();
+    setLastKickTime(now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+    
+    try {
+      await api.post("/kick-logs", {
+        count: nextKicks,
+        date: now.toISOString().slice(0, 10),
+      });
+    } catch {
+      // fallback
+    } finally {
+      setLogging(false);
+    }
+  }, [user, kicks]);
+
+  const handleLogWeight = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    const wt = parseFloat(weightInput);
+    if (isNaN(wt) || wt < 30 || wt > 200) return;
+    
+    setLoggingWeight(true);
+    try {
+      const newLog = await api.post("/weight-logs", { weight: wt });
+      setWeightLogs((prev) => [newLog, ...prev]);
+      setWeightInput("");
+    } catch {
+      // ignore
+    } finally {
+      setLoggingWeight(false);
+    }
+  }, [weightInput, user]);
+
+  const handleSelectMood = useCallback(async (mood: string) => {
+    if (!user) return;
+    setActiveMood(mood);
+    try {
+      await api.post("/mood-logs", { mood });
+    } catch {
+      // silent fallback
+    }
+  }, [user]);
 
   return (
     <AppShell>
@@ -149,32 +345,40 @@ export default function PregnancyTracker() {
 
           <Card className="rounded-3xl border-none shadow-lg p-6 mb-6">
             <h3 className="mb-4">Upcoming Milestones</h3>
-            <div className="space-y-4">
-              {milestones.map((milestone, index) => (
-                <div key={index} className="flex items-start gap-4">
-                  <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                      milestone.completed
-                        ? "bg-primary/20 text-primary"
-                        : "bg-muted border-2 border-muted-foreground/30"
-                    }`}
+            <div className="space-y-2">
+              {milestones.map((milestone, index) => {
+                const isToggling = togglingMilestone === `${milestone.week}-${milestone.title}`;
+                return (
+                  <button
+                    key={index}
+                    onClick={() => handleToggleMilestone(milestone.week, milestone.title)}
+                    disabled={isToggling}
+                    className="w-full flex items-start gap-4 p-2.5 rounded-2xl text-left hover:bg-muted/30 transition-colors cursor-pointer select-none"
                   >
-                    {milestone.completed ? (
-                      <Activity className="w-5 h-5" />
-                    ) : (
-                      <span className="text-xs font-bold">{milestone.week}</span>
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <p className={milestone.completed ? "line-through text-muted-foreground" : ""}>
-                      {milestone.title}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Week {milestone.week} • {milestone.date}
-                    </p>
-                  </div>
-                </div>
-              ))}
+                    <div
+                      className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${
+                        milestone.completed
+                          ? "bg-primary/20 text-primary"
+                          : "bg-muted border-2 border-muted-foreground/30"
+                      }`}
+                    >
+                      {milestone.completed ? (
+                        <Activity className="w-5 h-5" />
+                      ) : (
+                        <span className="text-xs font-bold">{milestone.week}</span>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <p className={`text-sm font-medium ${milestone.completed ? "line-through text-muted-foreground" : ""}`}>
+                        {milestone.title}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Week {milestone.week} • {milestone.date}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </Card>
 
@@ -190,41 +394,203 @@ export default function PregnancyTracker() {
                   <h3>Weight Tracking</h3>
                   <TrendingUp className="w-5 h-5 text-accent" />
                 </div>
-                <div className="space-y-2">
-                  {[
-                    { week: 20, weight: "132 lbs" },
-                    { week: 22, weight: "134 lbs" },
-                    { week: 24, weight: "136 lbs" },
-                  ].map((entry) => (
-                    <div
-                      key={entry.week}
-                      className="flex justify-between text-sm px-3 py-2 rounded-xl bg-muted/30"
-                    >
-                      <span className="text-muted-foreground">Week {entry.week}</span>
-                      <span className="font-medium">{entry.weight}</span>
+
+                <form onSubmit={handleLogWeight} className="space-y-4 mb-6 p-4 rounded-2xl bg-muted/20 border border-muted/10">
+                  <h4 className="text-sm font-semibold mb-2">Log New Weight</h4>
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <input
+                        type="number"
+                        step="0.1"
+                        placeholder="Weight (e.g. 62.5 kg or 135 lbs)"
+                        value={weightInput}
+                        onChange={(e) => setWeightInput(e.target.value)}
+                        className="w-full text-sm bg-background border border-muted/20 rounded-xl px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                        required
+                      />
                     </div>
-                  ))}
+                    <Button
+                      type="submit"
+                      disabled={loggingWeight}
+                      className="rounded-full bg-primary hover:bg-primary/90 text-sm px-6"
+                    >
+                      {loggingWeight ? "Logging..." : "Log Weight"}
+                    </Button>
+                  </div>
+                </form>
+
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                  {weightLogs.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No weights logged yet.</p>
+                  ) : (
+                    weightLogs.map((log) => {
+                      let weekLabel = "Logged";
+                      if (user?.dueDate) {
+                        const due = new Date(user.dueDate);
+                        const con = new Date(due);
+                        con.setDate(con.getDate() - 280);
+                        const diffMs = new Date(log.loggedAt).getTime() - con.getTime();
+                        const wk = Math.floor(diffMs / (1000 * 60 * 60 * 24 * 7));
+                        if (wk >= 0 && wk <= 42) {
+                          weekLabel = `Week ${wk}`;
+                        }
+                      }
+                      return (
+                        <div
+                          key={log.id}
+                          className="flex justify-between text-sm px-4 py-2.5 rounded-2xl bg-muted/30 border border-muted/10"
+                        >
+                          <span className="text-muted-foreground">
+                            {weekLabel} · {new Date(log.loggedAt).toLocaleDateString([], { month: "short", day: "numeric" })}
+                          </span>
+                          <span className="font-semibold">{log.weight}</span>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </Card>
             </TabsContent>
             <TabsContent value="bp" className="mt-4">
               <Card className="rounded-3xl border-none shadow-lg p-6">
-                <h3 className="mb-3">Blood Pressure Log</h3>
-                <p className="text-sm text-muted-foreground">Last reading: 118/76 mmHg — Normal ✓</p>
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="mb-1">Blood Pressure Log</h3>
+                    {bpLogs.length > 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        Last reading: {bpLogs[0].systolic}/{bpLogs[0].diastolic} mmHg 
+                        {bpLogs[0].pulse ? ` • Pulse: ${bpLogs[0].pulse} bpm` : ""}
+                        <span className={`inline-block ml-2 px-2.5 py-0.5 rounded-full text-xs font-medium border ${classifyBP(bpLogs[0].systolic, bpLogs[0].diastolic).color}`}>
+                          {classifyBP(bpLogs[0].systolic, bpLogs[0].diastolic).label}
+                        </span>
+                      </p>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No readings logged yet.</p>
+                    )}
+                  </div>
+                  <Heart className="w-5 h-5 text-red-500 fill-red-500" />
+                </div>
+
+                <form onSubmit={handleLogBp} className="space-y-4 mb-6 p-4 rounded-2xl bg-muted/20 border border-muted/10">
+                  <h4 className="text-sm font-semibold mb-2">Log New Reading</h4>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold block mb-1">
+                        Systolic (sys)
+                      </label>
+                      <input
+                        type="number"
+                        placeholder="120"
+                        value={sysInput}
+                        onChange={(e) => setSysInput(e.target.value)}
+                        className="w-full text-sm bg-background border border-muted/20 rounded-xl px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold block mb-1">
+                        Diastolic (dia)
+                      </label>
+                      <input
+                        type="number"
+                        placeholder="80"
+                        value={diaInput}
+                        onChange={(e) => setDiaInput(e.target.value)}
+                        className="w-full text-sm bg-background border border-muted/20 rounded-xl px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold block mb-1">
+                        Pulse (optional)
+                      </label>
+                      <input
+                        type="number"
+                        placeholder="72"
+                        value={pulseInput}
+                        onChange={(e) => setPulseInput(e.target.value)}
+                        className="w-full text-sm bg-background border border-muted/20 rounded-xl px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  {bpError && (
+                    <div className="flex items-center gap-2 text-xs text-destructive mt-1">
+                      <ShieldAlert className="w-3.5 h-3.5" />
+                      <span>{bpError}</span>
+                    </div>
+                  )}
+
+                  <Button
+                    type="submit"
+                    disabled={loggingBp}
+                    className="w-full rounded-full bg-primary hover:bg-primary/90 text-sm py-2"
+                  >
+                    {loggingBp ? "Logging..." : "Log Blood Pressure"}
+                  </Button>
+                </form>
+
+                {bpLogs.length > 0 && (
+                  <div className="space-y-2 mt-4 max-h-60 overflow-y-auto pr-1">
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                      Recent Readings
+                    </h4>
+                    {bpLogs.map((log) => {
+                      const classification = classifyBP(log.systolic, log.diastolic);
+                      return (
+                        <div
+                          key={log.id}
+                          className="flex justify-between items-center text-sm px-4 py-2.5 rounded-2xl bg-muted/30 border border-muted/10"
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="font-semibold text-foreground">
+                              {log.systolic}/{log.diastolic}
+                            </span>
+                            <span className="text-xs text-muted-foreground">mmHg</span>
+                            {log.pulse && (
+                              <span className="text-xs text-muted-foreground font-medium bg-muted/60 px-1.5 py-0.5 rounded">
+                                ♥ {log.pulse} bpm
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${classification.color}`}>
+                              {classification.label}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground font-medium">
+                              {new Date(log.loggedAt).toLocaleDateString([], {
+                                month: "short",
+                                day: "numeric",
+                              })}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </Card>
             </TabsContent>
             <TabsContent value="mood" className="mt-4">
               <Card className="rounded-3xl border-none shadow-lg p-6">
                 <h3 className="mb-3">Mood Tracker</h3>
                 <div className="flex gap-3 flex-wrap">
-                  {["😊 Happy", "😌 Calm", "😴 Tired", "🤢 Nauseous"].map((mood) => (
-                    <button
-                      key={mood}
-                      className="px-4 py-2 rounded-full bg-muted/40 text-sm hover:bg-primary/20 hover:text-primary transition-colors"
-                    >
-                      {mood}
-                    </button>
-                  ))}
+                  {["😊 Happy", "😌 Calm", "😴 Tired", "🤢 Nauseous"].map((mood) => {
+                    const isActive = activeMood === mood;
+                    return (
+                      <button
+                        key={mood}
+                        onClick={() => handleSelectMood(mood)}
+                        className={`px-4 py-2 rounded-full text-sm transition-all duration-250 border
+                          ${isActive
+                            ? "bg-primary text-primary-foreground border-primary scale-105 font-medium shadow"
+                            : "bg-muted/40 text-foreground border-transparent hover:bg-primary/20 hover:text-primary hover:border-primary/40"
+                          }`}
+                      >
+                        {mood}
+                      </button>
+                    );
+                  })}
                 </div>
               </Card>
             </TabsContent>

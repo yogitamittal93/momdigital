@@ -22,10 +22,16 @@ export type ApiUser = {
   name: string;
   dueDate?: string | null;
   babyBirthDate?: string | null;
+  babyName?: string | null;
+  deliveryType?: string | null;
   avatarUrl?: string | null;
+  profileImage?: string | null;
   role?: string;
+  weight?: number | null;
+  height?: number | null;
   careerPlan?: CareerPlan | null;
 };
+
 
 export type MeResponse = { user: ApiUser };
 

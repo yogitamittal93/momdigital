@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { api, parseReply } from '@/lib/api-client';
+import { api, parseReply, type ApiUser } from '@/lib/api-client';
+import { useMlStatus } from '@/hooks/use-ml-status';
 
 interface Message {
   id: string;
@@ -40,7 +41,15 @@ const CONFIDENCE_BANNERS = {
   },
 };
 
-export function ChatWindow({ userId: _userId }: { userId?: string }) {
+interface ChatWindowProps {
+  userId?: string;
+  /** Pass the current user profile for richer context in future features */
+  userProfile?: ApiUser;
+}
+
+export function ChatWindow({ userId: _userId, userProfile: _userProfile }: ChatWindowProps) {
+  const { status: mlStatus, chunksIndexed } = useMlStatus();
+
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '0',
@@ -129,8 +138,34 @@ export function ChatWindow({ userId: _userId }: { userId?: string }) {
     }
   }
 
+  // ── ML status indicator ──────────────────────────────────────────────────────
+  const statusDot =
+    mlStatus === 'loading'
+      ? { color: 'bg-yellow-400', label: 'AI connecting…' }
+      : mlStatus === 'ok'
+      ? { color: 'bg-green-400', label: `AI online · ${chunksIndexed.toLocaleString()} docs` }
+      : { color: 'bg-red-400', label: 'AI warming up — responses may be slower' };
+
   return (
     <div className="flex flex-col h-full max-w-2xl mx-auto min-h-[500px]">
+
+      {/* ── Status bar ──────────────────────────────────────────────────────── */}
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-100 bg-gray-50 rounded-t-2xl">
+        <span
+          id="ml-status-dot"
+          className={`inline-block w-2 h-2 rounded-full ${statusDot.color} ${mlStatus === 'loading' ? 'animate-pulse' : ''}`}
+        />
+        <span className="text-xs text-gray-500">{statusDot.label}</span>
+      </div>
+
+      {/* ── Degraded banner ─────────────────────────────────────────────────── */}
+      {mlStatus === 'degraded' && (
+        <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 text-xs text-amber-800">
+          ⚠️ AI service is warming up — your question will still be answered, but may take a moment longer.
+        </div>
+      )}
+
+      {/* ── Message list ────────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((message) => (
           <div
@@ -184,12 +219,14 @@ export function ChatWindow({ userId: _userId }: { userId?: string }) {
         <div ref={bottomRef} />
       </div>
 
+      {/* ── Disclaimer ──────────────────────────────────────────────────────── */}
       <div className="text-center text-xs text-gray-400 px-4 pb-2">
         Matrny provides AI-generated health information only. Not a substitute for
         professional medical advice. Emergency: <strong>112</strong> | NHM:{' '}
         <strong>104</strong>
       </div>
 
+      {/* ── Input area ──────────────────────────────────────────────────────── */}
       <div className="p-4 border-t border-gray-100 bg-white">
         <div className="flex gap-2">
           <textarea
@@ -202,6 +239,7 @@ export function ChatWindow({ userId: _userId }: { userId?: string }) {
           />
           <button
             type="button"
+            id="chat-send-btn"
             onClick={sendMessage}
             disabled={isLoading || !input.trim()}
             className="bg-rose-500 text-white rounded-xl px-4 py-2.5 text-sm font-medium disabled:opacity-50 hover:bg-rose-600 transition-colors"

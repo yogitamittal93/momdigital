@@ -66,6 +66,10 @@ export class AuthService {
         name: true,
         dueDate: true,
         babyBirthDate: true,
+        babyName: true,
+        deliveryType: true,
+        weight: true,
+        height: true,
         role: true,
         expertStatus: true,
         isAdmin: true,
@@ -345,6 +349,9 @@ export class AuthService {
         ...((dto.avatarUrl ?? dto.profileImage) !== undefined && {
           profileImage: dto.avatarUrl ?? dto.profileImage,
         }),
+        // Vitals — written when provided; never overwrite with undefined
+        ...(dto.weight !== undefined && { weight: dto.weight }),
+        ...(dto.height !== undefined && { height: dto.height }),
       },
       select: {
         id: true,
@@ -355,6 +362,8 @@ export class AuthService {
         babyBirthDate: true,
         deliveryType: true,
         profileImage: true,
+        weight: true,
+        height: true,
         role: true,
         onboardingDone: true,
       },

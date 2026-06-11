@@ -63,6 +63,8 @@ model User {
   id              String        @id @default(uuid())
   email           String        @unique
   password        String?       // null for OAuth-only accounts
+  weight          Float?    // kg
+  height          Float?    // cm
 
   // Display
   name            String
@@ -104,8 +106,14 @@ model User {
 
   // Relations — mother
   exerciseLogs        ExerciseLog[]
+  pregnancyMilestoneLogs PregnancyMilestoneLog[]
+  bloodPressureLogs      BloodPressureLog[]
+  wellnessChecklistLogs  WellnessChecklistLog[]
   feedingLogs         FeedingLog[]
   trustedHelperChecks TrustedHelperCheck[]
+  weightLogs          WeightLog[]
+  moodLogs            MoodLog[]
+  kickLogs            KickLog[]
   appointments        Appointment[]
   chatMessages        ChatMessage[]
   contentRequests     ContentRequest[]    @relation("UploadedBy")
@@ -569,19 +577,97 @@ model TrustedHelperCheck {
 }
 
 model Appointment {
-  id         String   @id @default(uuid())
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  title      String
-  doctorName String?
-  location   String?
-  dateTime   DateTime
-  notes      String?
-  reminded   Boolean  @default(false)
+  title       String
+  description String?
+  location    String?
+  date        DateTime
+  type        String   @default("CHECKUP")
+  completed   Boolean  @default(false)
+  reminder    Boolean  @default(true)
 
-  createdAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
 
   @@index([userId])
   @@map("appointments")
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// NEW LOGGING ENTITIES (Pregnancy & Recovery)
+// ═══════════════════════════════════════════════════════════════════
+
+model PregnancyMilestoneLog {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  week        Int
+  title       String
+  completedAt DateTime @default(now())
+
+  @@unique([userId, week, title])
+  @@index([userId])
+  @@map("pregnancy_milestone_logs")
+}
+
+model BloodPressureLog {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  systolic    Int
+  diastolic   Int
+  pulse       Int?
+  loggedAt    DateTime @default(now())
+
+  @@index([userId])
+  @@map("blood_pressure_logs")
+}
+
+model WellnessChecklistLog {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskId      String   // E.g., "1", "2", "3"
+  completedAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("wellness_checklist_logs")
+}
+
+model WeightLog {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weight    Float
+  loggedAt  DateTime @default(now())
+
+  @@index([userId])
+  @@map("weight_logs")
+}
+
+model MoodLog {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mood      String
+  loggedAt  DateTime @default(now())
+
+  @@index([userId])
+  @@map("mood_logs")
+}
+
+model KickLog {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  count     Int
+  date      String   // YYYY-MM-DD
+  loggedAt  DateTime @default(now())
+
+  @@unique([userId, date])
+  @@index([userId])
+  @@map("kick_logs")
+}
+

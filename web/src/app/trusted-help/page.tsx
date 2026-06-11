@@ -227,7 +227,7 @@ function NannyTab({ babyBirthDate }: { babyBirthDate: string | null }) {
   const [checked, setChecked] = useState<Record<string, boolean>>({});
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
-  const [savedToday, setSavedToday] = useState(false);
+  const [initialLoaded, setInitialLoaded] = useState(false);
   const [lastSave, setLastSave] = useState<SavedCheck | null>(null);
 
   // Load today's saved check on mount
@@ -239,49 +239,71 @@ function NannyTab({ babyBirthDate }: { babyBirthDate: string | null }) {
           const today = new Date().toISOString().slice(0, 10);
           const saveDate = new Date(data[0].checkedAt).toISOString().slice(0, 10);
           if (saveDate === today) {
-            setChecked(data[0].checks as Record<string, boolean>);
-            setSavedToday(true);
+            const savedChecks = data[0].checks as Record<string, any>;
+            const { __notes, ...restChecks } = savedChecks;
+            setChecked(restChecks as Record<string, boolean>);
+            if (__notes) {
+              setNotes(__notes);
+            }
             setLastSave(data[0]);
           }
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        setInitialLoaded(true);
+      });
   }, []);
 
   const toggle = useCallback((id: string) => {
     setChecked((prev) => ({ ...prev, [id]: !prev[id] }));
-    setSavedToday(false);
   }, []);
 
-  const criticalItems = items.filter((i) => i.critical);
-  const criticalDone = criticalItems.filter((i) => checked[i.id]).length;
-  const totalDone = items.filter((i) => checked[i.id]).length;
-  const score = items.length > 0
-    ? Math.round(
-        (criticalItems.length > 0
-          ? (criticalDone / criticalItems.length) * 70
-          : 70) +
-        (items.length > 0 ? (totalDone / items.length) * 30 : 0)
-      )
-    : 0;
+  const calculateScore = useCallback((currentChecked: Record<string, boolean>) => {
+    const criticalItems = items.filter((i) => i.critical);
+    const criticalDone = criticalItems.filter((i) => currentChecked[i.id]).length;
+    const totalDone = items.filter((i) => currentChecked[i.id]).length;
+    return items.length > 0
+      ? Math.round(
+          (criticalItems.length > 0
+            ? (criticalDone / criticalItems.length) * 70
+            : 70) +
+          (items.length > 0 ? (totalDone / items.length) * 30 : 0)
+        )
+      : 0;
+  }, [items]);
 
-  const handleSave = async () => {
+  const score = useMemo(() => calculateScore(checked), [checked, calculateScore]);
+
+  const handleSave = useCallback(async (
+    latestChecked: Record<string, boolean>,
+    latestNotes: string,
+    latestScore: number
+  ) => {
     setSaving(true);
     try {
       const result = await api.post("/nanny/check", {
         helperType: "nanny",
-        checks: checked,
-        score,
-        notes,
+        checks: latestChecked,
+        score: latestScore,
+        notes: latestNotes,
       }) as SavedCheck;
-      setSavedToday(true);
       setLastSave(result);
     } catch {
-      // silent — user can retry
+      // silent
     } finally {
       setSaving(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!initialLoaded) return;
+    const currentScore = calculateScore(checked);
+    const delayDebounce = setTimeout(() => {
+      handleSave(checked, notes, currentScore);
+    }, 800);
+    return () => clearTimeout(delayDebounce);
+  }, [checked, notes, initialLoaded, calculateScore, handleSave]);
 
   const isWeeklyDay = dayNumber > 30 && dayNumber % 7 !== 0;
 
@@ -291,7 +313,7 @@ function NannyTab({ babyBirthDate }: { babyBirthDate: string | null }) {
       <Card className="rounded-3xl border-none shadow-lg p-6">
         <div className="flex items-center justify-between gap-4">
           <div className="flex-1">
-            <h3 className="mb-1">
+            <h3 className="mb-1 flex items-center gap-2">
               {!babyBirthDate
                 ? "Nanny Trust Check"
                 : dayNumber <= 15
@@ -299,6 +321,23 @@ function NannyTab({ babyBirthDate }: { babyBirthDate: string | null }) {
                 : dayNumber <= 30
                 ? `Day ${dayNumber} — First month`
                 : `Day ${dayNumber} — Ongoing care`}
+              {babyBirthDate && (
+                <span className="text-[11px] font-normal px-2.5 py-0.5 rounded-full border bg-muted/40 text-muted-foreground flex items-center gap-1 transition-all">
+                  {saving ? (
+                    <span className="flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />
+                      Saving...
+                    </span>
+                  ) : initialLoaded ? (
+                    <span className="flex items-center gap-1 text-primary">
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                      Saved to profile
+                    </span>
+                  ) : (
+                    "Loading..."
+                  )}
+                </span>
+              )}
             </h3>
             <p className="text-sm text-muted-foreground">
               {!babyBirthDate
@@ -307,11 +346,6 @@ function NannyTab({ babyBirthDate }: { babyBirthDate: string | null }) {
                 ? "Non-weekly day — standard daily checks apply."
                 : `${items.length} checks for today`}
             </p>
-            {savedToday && (
-              <p className="text-xs text-primary mt-1 flex items-center gap-1">
-                <CheckCircle2 className="w-3 h-3" /> Saved today
-              </p>
-            )}
           </div>
           <ScoreRing score={score} />
         </div>
@@ -359,18 +393,6 @@ function NannyTab({ babyBirthDate }: { babyBirthDate: string | null }) {
           onChange={(e) => setNotes(e.target.value)}
         />
       </Card>
-
-      {/* Save button */}
-      {babyBirthDate && (
-        <Button
-          className="w-full rounded-full"
-          onClick={handleSave}
-          disabled={saving || savedToday}
-        >
-          <CheckCircle2 className="w-4 h-4 mr-2" />
-          {saving ? "Saving…" : savedToday ? "Saved today ✓" : "Save today's check"}
-        </Button>
-      )}
     </div>
   );
 }
@@ -381,37 +403,76 @@ function ChefTab() {
   const [checked, setChecked] = useState<Record<string, boolean>>({});
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
-  const [savedToday, setSavedToday] = useState(false);
+  const [initialLoaded, setInitialLoaded] = useState(false);
+
+  // Load today's saved check on mount
+  useEffect(() => {
+    api.get("/nanny/check?helperType=chef&limit=1")
+      .then((res: unknown) => {
+        const data = res as SavedCheck[];
+        if (data?.[0]) {
+          const today = new Date().toISOString().slice(0, 10);
+          const saveDate = new Date(data[0].checkedAt).toISOString().slice(0, 10);
+          if (saveDate === today) {
+            const savedChecks = data[0].checks as Record<string, any>;
+            const { __notes, ...restChecks } = savedChecks;
+            setChecked(restChecks as Record<string, boolean>);
+            if (__notes) {
+              setNotes(__notes);
+            }
+          }
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        setInitialLoaded(true);
+      });
+  }, []);
 
   const toggle = useCallback((id: string) => {
     setChecked((prev) => ({ ...prev, [id]: !prev[id] }));
-    setSavedToday(false);
   }, []);
 
-  const criticalItems = CHEF_CHECKLIST.filter((i) => i.critical);
-  const criticalDone = criticalItems.filter((i) => checked[i.id]).length;
-  const totalDone = CHEF_CHECKLIST.filter((i) => checked[i.id]).length;
-  const score = Math.round(
-    (criticalDone / criticalItems.length) * 70 +
-    (totalDone / CHEF_CHECKLIST.length) * 30
-  );
+  const calculateScore = useCallback((currentChecked: Record<string, boolean>) => {
+    const criticalItems = CHEF_CHECKLIST.filter((i) => i.critical);
+    const criticalDone = criticalItems.filter((i) => currentChecked[i.id]).length;
+    const totalDone = CHEF_CHECKLIST.filter((i) => currentChecked[i.id]).length;
+    return Math.round(
+      (criticalDone / criticalItems.length) * 70 +
+      (totalDone / CHEF_CHECKLIST.length) * 30
+    );
+  }, []);
 
-  const handleSave = async () => {
+  const score = useMemo(() => calculateScore(checked), [checked, calculateScore]);
+
+  const handleSave = useCallback(async (
+    latestChecked: Record<string, boolean>,
+    latestNotes: string,
+    latestScore: number
+  ) => {
     setSaving(true);
     try {
       await api.post("/nanny/check", {
         helperType: "chef",
-        checks: checked,
-        score,
-        notes,
+        checks: latestChecked,
+        score: latestScore,
+        notes: latestNotes,
       });
-      setSavedToday(true);
     } catch {
       // silent
     } finally {
       setSaving(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!initialLoaded) return;
+    const currentScore = calculateScore(checked);
+    const delayDebounce = setTimeout(() => {
+      handleSave(checked, notes, currentScore);
+    }, 800);
+    return () => clearTimeout(delayDebounce);
+  }, [checked, notes, initialLoaded, calculateScore, handleSave]);
 
   return (
     <div className="space-y-4">
@@ -419,15 +480,27 @@ function ChefTab() {
       <Card className="rounded-3xl border-none shadow-lg p-6">
         <div className="flex items-center justify-between gap-4">
           <div className="flex-1">
-            <h3 className="mb-1">Chef hygiene & diet check</h3>
+            <h3 className="mb-1 flex items-center gap-2">
+              Chef hygiene & diet check
+              <span className="text-[11px] font-normal px-2.5 py-0.5 rounded-full border bg-muted/40 text-muted-foreground flex items-center gap-1 transition-all">
+                {saving ? (
+                  <span className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />
+                    Saving...
+                  </span>
+                ) : initialLoaded ? (
+                  <span className="flex items-center gap-1 text-primary">
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                    Saved to profile
+                  </span>
+                ) : (
+                  "Loading..."
+                )}
+              </span>
+            </h3>
             <p className="text-sm text-muted-foreground">
               {CHEF_CHECKLIST.length} checks · postpartum kitchen safety
             </p>
-            {savedToday && (
-              <p className="text-xs text-primary mt-1 flex items-center gap-1">
-                <CheckCircle2 className="w-3 h-3" /> Saved today
-              </p>
-            )}
           </div>
           <ScoreRing score={isNaN(score) ? 0 : score} />
         </div>
@@ -460,15 +533,6 @@ function ChefTab() {
           onChange={(e) => setNotes(e.target.value)}
         />
       </Card>
-
-      <Button
-        className="w-full rounded-full"
-        onClick={handleSave}
-        disabled={saving || savedToday}
-      >
-        <CheckCircle2 className="w-4 h-4 mr-2" />
-        {saving ? "Saving…" : savedToday ? "Saved today ✓" : "Save today's check"}
-      </Button>
     </div>
   );
 }

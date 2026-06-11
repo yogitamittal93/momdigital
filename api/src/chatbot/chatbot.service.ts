@@ -53,7 +53,7 @@ export class ChatbotService {
           this.httpService.post(
             `${this.mlBaseUrl}/extract`,
             { text: message },
-            { timeout: 5000 },
+            { timeout: 8000 },  // ← increased from 5000: cold-start ML can take 5-7s
           ),
         );
         extracted = mlResponse.data as Record<string, unknown>;
@@ -90,13 +90,24 @@ export class ChatbotService {
         name: string;
         dueDate: Date | null;
         babyBirthDate: Date | null;
-        weight?: number | null;
-        height?: number | null;
+        weight: number | null;
+        height: number | null;
+        deliveryType: string | null;
       } | null = null;
 
       try {
         user = await this.prisma.user.findUnique({
           where: { id: userId },
+          select: {
+            id: true,
+            name: true,
+            dueDate: true,
+            babyBirthDate: true,
+            babyName: true,
+            deliveryType: true,
+            weight: true,
+            height: true,
+          },
         });
       } catch (err) {
         this.logger.warn(`Prisma error fetching user: ${(err as Error).message}`);
@@ -104,7 +115,7 @@ export class ChatbotService {
 
       if (!user) throw new NotFoundException('User not found');
 
-      const vitals = await this.userHasVitals(userId, extracted);
+      const vitals = await this.userHasVitals(userId, extracted, user);
 
       const onboardingComplete =
         user.name &&
@@ -272,16 +283,37 @@ export class ChatbotService {
     return { isValid: true, errorMessage: '' };
   }
 
+  /**
+   * Check whether the user already has weight and height on record.
+   *
+   * Priority order:
+   *  1. Current message extraction (extracted.weight_value / extracted.height_value)
+   *  2. User row (user.weight / user.height) — fastest, set by buildProfilePatch
+   *  3. Last 20 contentRequest contexts — legacy fallback for data saved before
+   *     the weight/height columns existed on the users table
+   */
   private async userHasVitals(
     userId: string,
     extracted: Record<string, unknown>,
+    user?: { weight?: number | null; height?: number | null },
   ): Promise<{ hasWeight: boolean; hasHeight: boolean }> {
-    // Check current message first
+    // 1. Check current message first
     const currentWeight = extracted.weight_value as number | null;
     const currentHeight = extracted.height_value as number | null;
 
-    // Scan ALL past contentRequests for stored weight and height separately
-    // This handles the case where weight was given in turn 1 and height in turn 2
+    // 2. Check the user row directly (fast path)
+    const rowWeight = user?.weight ?? null;
+    const rowHeight = user?.height ?? null;
+
+    if ((currentWeight || rowWeight) && (currentHeight || rowHeight)) {
+      return {
+        hasWeight: true,
+        hasHeight: true,
+      };
+    }
+
+    // 3. Legacy fallback: scan past contentRequests for stored vitals
+    //    (covers data saved before weight/height columns existed)
     const pastRequests = await this.prisma.contentRequest.findMany({
       where: { uploadedById: userId },
       orderBy: { createdAt: 'desc' },
@@ -300,8 +332,8 @@ export class ChatbotService {
     }
 
     return {
-      hasWeight: Boolean(currentWeight || storedWeight),
-      hasHeight: Boolean(currentHeight || storedHeight),
+      hasWeight: Boolean(currentWeight || rowWeight || storedWeight),
+      hasHeight: Boolean(currentHeight || rowHeight || storedHeight),
     };
   }
 
@@ -362,6 +394,8 @@ export class ChatbotService {
       babyBirthDate: Date | null;
       babyName: string | null;
       deliveryType: string | null;
+      weight?: number | null;
+      height?: number | null;
     },
     data: Record<string, unknown>,
   ): Record<string, unknown> {
@@ -386,6 +420,29 @@ export class ChatbotService {
       !user.babyName
     ) {
       patch.babyName = (data.babyName as string).trim();
+    }
+
+    // ── weight ───────────────────────────────────────────────────────────────
+    // Write to user row so subsequent sessions don't re-ask.
+    const extractedWeight = data.weight_value as number | null;
+    if (extractedWeight && !user.weight) {
+      if (
+        extractedWeight >= this.THRESHOLDS.WEIGHT.MIN &&
+        extractedWeight <= this.THRESHOLDS.WEIGHT.MAX
+      ) {
+        patch.weight = extractedWeight;
+      }
+    }
+
+    // ── height ───────────────────────────────────────────────────────────────
+    const extractedHeight = data.height_value as number | null;
+    if (extractedHeight && !user.height) {
+      if (
+        extractedHeight >= this.THRESHOLDS.HEIGHT.MIN &&
+        extractedHeight <= this.THRESHOLDS.HEIGHT.MAX
+      ) {
+        patch.height = extractedHeight;
+      }
     }
 
     // ── babyBirthDate ────────────────────────────────────────────────────────
@@ -507,12 +564,37 @@ export class ChatbotService {
     return null;
   }
 
+  /**
+   * Proxy the ML service /health endpoint.
+   * Called by GET /chatbot/health — no auth guard needed.
+   */
+  async checkMlHealth(): Promise<{
+    mlStatus: 'ok' | 'degraded';
+    chunksIndexed: number;
+    mlUrl: string;
+  }> {
+    try {
+      const res = await firstValueFrom(
+        this.httpService.get(`${this.mlBaseUrl}/health`, { timeout: 4000 }),
+      );
+      const data = res.data as { status?: string; chunks_indexed?: number };
+      return {
+        mlStatus: data.status === 'ok' ? 'ok' : 'degraded',
+        chunksIndexed: data.chunks_indexed ?? 0,
+        mlUrl: this.mlBaseUrl,
+      };
+    } catch {
+      return { mlStatus: 'degraded', chunksIndexed: 0, mlUrl: this.mlBaseUrl };
+    }
+  }
+
   private async getRAGResponse(
     message: string,
     extracted: Record<string, unknown>,
     user: { dueDate: Date | null },
     userId: string,
   ): Promise<RagResult | null> {
+
     const healthKeywords = [
       'eat', 'food', 'diet', 'recipe', 'pain', 'feel', 'symptom',
       'medicine', 'exercise', 'massage', 'baby', 'breastfeed',

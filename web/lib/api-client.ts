@@ -15,9 +15,9 @@
  */
 
 // Re-export the canonical, cookie-aware Axios instance
-export { default as apiClient } from '../src/lib/api';
+export { default as apiClient } from '../src/lib/Api';
 
-import apiInstance from '../src/lib/api';
+import apiInstance from '../src/lib/Api';
 
 // ─── Typed API helpers ────────────────────────────────────────────────────────
 

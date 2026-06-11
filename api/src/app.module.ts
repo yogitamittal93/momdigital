@@ -16,6 +16,13 @@ import { ExpertsModule } from './experts/experts.module';
 import { PostsModule } from './posts/posts.module';
 import { DoctorQueueModule } from './doctor-queue/doctor-queue.module';
 import { RoutingModule } from './routing/routing.module';
+import { PregnancyMilestonesModule } from './pregnancy-milestones/pregnancy-milestones.module';
+import { BloodPressureModule } from './blood-pressure/blood-pressure.module';
+import { WellnessLogsModule } from './wellness-logs/wellness-logs.module';
+import { FeedingLogsModule } from './feeding-logs/feeding-logs.module';
+import { WeightLogsModule } from './weight-logs/weight-logs.module';
+import { MoodLogsModule } from './mood-logs/mood-logs.module';
+import { KickLogsModule } from './kick-logs/kick-logs.module';
 
 @Module({
   imports: [
@@ -27,6 +34,13 @@ import { RoutingModule } from './routing/routing.module';
     AffirmationsModule,
     AppointmentsModule,
     ExerciseLogsModule,
+    PregnancyMilestonesModule,
+    BloodPressureModule,
+    WellnessLogsModule,
+    FeedingLogsModule,
+    WeightLogsModule,
+    MoodLogsModule,
+    KickLogsModule,
     ScanReportsModule,
     ContentRequestsModule,
     TrainerContentModule,
