@@ -1,7 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Briefcase, Calendar, Star, Sparkles, CheckCircle2, BookOpen } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Briefcase,
+  Calendar,
+  CheckCircle2,
+  Edit3,
+  ExternalLink,
+  Lightbulb,
+  Sparkles,
+  TrendingUp,
+} from "lucide-react";
 import AppShell from "@/components/layout/app-shell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,6 +18,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useUserProfile } from "@/hooks/use-user-profile";
 import { api } from "@/lib/api-client";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type CareerPlan = {
   profession?: string;
@@ -38,129 +49,169 @@ const defaultForm = {
   returnDate: "",
 };
 
-function formatDaysAgo(days: number) {
-  if (days === 0) return "today";
-  if (days === 1) return "1 day ago";
-  return `${days} days ago`;
+// ─── Career Insights via DuckDuckGo Instant Answer ───────────────────────────
+
+type DdgInsight = { heading: string; text: string; url: string } | null;
+
+async function fetchCareerInsight(profession: string): Promise<DdgInsight> {
+  try {
+    const q = encodeURIComponent(
+      `${profession} return to work after maternity leave tips India`
+    );
+    const res = await fetch(
+      `https://api.duckduckgo.com/?q=${q}&format=json&no_redirect=1&no_html=1`,
+      { cache: "no-store" }
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as {
+      Heading?: string;
+      AbstractText?: string;
+      AbstractURL?: string;
+      RelatedTopics?: { Text?: string; FirstURL?: string }[];
+    };
+    if (data.AbstractText) {
+      return {
+        heading: data.Heading ?? profession,
+        text: data.AbstractText,
+        url: data.AbstractURL ?? "",
+      };
+    }
+    // Try first related topic as fallback
+    const related = data.RelatedTopics?.[0];
+    if (related?.Text) {
+      return { heading: profession, text: related.Text, url: related.FirstURL ?? "" };
+    }
+  } catch {
+    // silently fall through to static fallback
+  }
+  return null;
 }
 
-export default function CareerPage() {
-  const { user, loading } = useUserProfile();
-  const [careerPlan, setCareerPlan] = useState<CareerPlan | null>(null);
-  const [formState, setFormState] = useState(defaultForm);
-  const [exerciseLog, setExerciseLog] = useState<string[]>([]);
-  const [completedTasks, setCompletedTasks] = useState<string[]>([]);
-  const [saving, setSaving] = useState(false);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+const STATIC_CAREER_TIPS: Record<string, string> = {
+  default:
+    "Many mothers find that easing back to work gradually — starting with part-time hours or remote days — helps them manage both work expectations and infant care. Document your skills and achievements from the maternity period (project management, scheduling, multitasking) and frame them as professional strengths.",
+  teacher:
+    "Reconnect with your school or institution before return. Reviewing updated curricula or lesson plans during the last weeks of leave helps reduce first-week anxiety and signals commitment to your team.",
+  engineer:
+    "Spend a few hours before return reviewing recent tech updates, PRs, or design docs in your area. A short 'knowledge refresh sprint' of 1-2 hours/day in week 8 onward ensures you return confidently.",
+  doctor:
+    "Check with your clinical lead for any updated protocols or new equipment adopted during your absence. Consider a phased clinical return with a buddy system in the first two weeks.",
+  nurse:
+    "Review any updated ward protocols and check if your BLS/ACLS certifications are current. Many hospitals offer refresher shifts — ask HR about phased return options.",
+};
 
-  const firstName = user?.name?.split(" ")[0] ?? "there";
-  const headline = `Career Journey for ${firstName}`;
-  const stageLabel = user?.babyBirthDate
-    ? "Postpartum transition"
-    : user?.dueDate
-    ? "Pregnancy transition"
-    : "Career transition";
-  const introText = user?.name
-    ? `Hi ${firstName}, this section helps you capture your work history, leave plans, and return-to-work ideas.`
-    : "Complete your profile to turn career support into a personalized path.";
+function getStaticTip(profession: string): string {
+  const lower = profession.toLowerCase();
+  for (const key of Object.keys(STATIC_CAREER_TIPS)) {
+    if (key !== "default" && lower.includes(key)) return STATIC_CAREER_TIPS[key];
+  }
+  return STATIC_CAREER_TIPS.default;
+}
 
-  const daysSinceBirth = useMemo(() => {
-    if (!user?.babyBirthDate) return null;
-    const birthDate = new Date(user.babyBirthDate);
-    const today = new Date();
-    return Math.max(0, Math.floor((today.getTime() - birthDate.getTime()) / (1000 * 60 * 60 * 24)));
-  }, [user?.babyBirthDate]);
+// ─── Timeline ─────────────────────────────────────────────────────────────────
 
-  const suggestionItems = useMemo(() => {
-    const items: string[] = [];
-    if (user?.dueDate && !user?.babyBirthDate) {
-      items.push("Talk with your employer about expected maternity leave and a gentle return schedule.");
-    }
-    if (formState.maternityLeave.toLowerCase().startsWith("y")) {
-      items.push("Keep a simple handover note for your team so your leave starts with confidence.");
-    }
-    if (formState.planningCareerChange.toLowerCase().startsWith("y")) {
-      items.push("Use leave time to explore new roles, update your resume, and keep learning.");
-    }
-    if (daysSinceBirth !== null) {
-      if (daysSinceBirth < 42) {
-        items.push("Focus on recovery first. In about 6 weeks we’ll help you ease back into work.");
-      } else {
-        items.push("Now is a good time to reconnect with your business gently and set small next steps.");
-      }
-    }
-    if (!items.length) {
-      items.push("Answer the short questions below to receive the most relevant career guidance.");
-    }
-    return items;
-  }, [user?.dueDate, formState.maternityLeave, formState.planningCareerChange, daysSinceBirth]);
+function CareerTimeline({
+  breakStartDate,
+  returnDate,
+}: {
+  breakStartDate?: string | null;
+  returnDate?: string | null;
+}) {
+  const today = new Date();
+
+  const start = breakStartDate ? new Date(breakStartDate) : null;
+  const end = returnDate ? new Date(returnDate) : null;
+
+  const totalDays =
+    start && end ? Math.max(1, (end.getTime() - start.getTime()) / 86400000) : null;
+  const elapsedDays =
+    start ? Math.max(0, (today.getTime() - start.getTime()) / 86400000) : null;
+  const pct =
+    totalDays && elapsedDays != null
+      ? Math.min(100, Math.round((elapsedDays / totalDays) * 100))
+      : null;
+
+  const daysToReturn =
+    end ? Math.ceil((end.getTime() - today.getTime()) / 86400000) : null;
+
+  if (!start && !end) return null;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between text-sm">
+        <span className="text-muted-foreground">
+          {start ? start.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"}
+        </span>
+        <span className="font-medium text-foreground">Leave journey</span>
+        <span className="text-muted-foreground">
+          {end ? end.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"}
+        </span>
+      </div>
+
+      {pct !== null && (
+        <div className="relative h-3 bg-muted rounded-full overflow-hidden">
+          <div
+            className="absolute left-0 top-0 h-full bg-gradient-to-r from-primary to-accent rounded-full transition-all duration-700"
+            style={{ width: `${pct}%` }}
+          />
+          {/* Today marker */}
+          <div
+            className="absolute top-0 h-full w-0.5 bg-foreground/40"
+            style={{ left: `${pct}%` }}
+          />
+        </div>
+      )}
+
+      <div className="flex justify-between text-xs text-muted-foreground">
+        <span>Leave start</span>
+        <span className="font-medium text-primary">
+          {daysToReturn !== null
+            ? daysToReturn > 0
+              ? `${daysToReturn} days to return`
+              : daysToReturn === 0
+              ? "Return date is today! 🎉"
+              : `${Math.abs(daysToReturn)} days overdue`
+            : "Today"}
+        </span>
+        <span>Return target</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Plan Dashboard ───────────────────────────────────────────────────────────
+
+function CareerDashboard({
+  plan,
+  daysSinceBirth,
+  completedTasks,
+  toggleReturnTask,
+  saving,
+  onEdit,
+}: {
+  plan: CareerPlan;
+  daysSinceBirth: number | null;
+  completedTasks: string[];
+  toggleReturnTask: (task: string) => void;
+  saving: boolean;
+  onEdit: () => void;
+}) {
+  const [insight, setInsight] = useState<DdgInsight>(null);
+  const [insightLoading, setInsightLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) return;
-    const plan = user.careerPlan ?? null;
-    setCareerPlan(plan);
-    setFormState({
-      profession: plan?.profession ?? "",
-      employer: plan?.employer ?? "",
-      workBeforePregnancy: plan?.planItems?.workBeforePregnancy ?? "",
-      maternityLeave: plan?.planItems?.maternityLeave ?? "",
-      stayAtHomeDuration: plan?.planItems?.stayAtHomeDuration ?? "",
-      planningCareerChange: plan?.planItems?.planningCareerChange ?? "",
-      stayConnectedBusiness: plan?.planItems?.stayConnectedBusiness ?? "",
-      breakStartDate: plan?.breakStartDate ? plan.breakStartDate.slice(0, 10) : "",
-      returnDate: plan?.returnDate ? plan.returnDate.slice(0, 10) : "",
+    if (!plan.profession) {
+      setInsightLoading(false);
+      return;
+    }
+    fetchCareerInsight(plan.profession).then((res) => {
+      setInsight(res);
+      setInsightLoading(false);
     });
-    setExerciseLog(plan?.planItems?.exerciseLog ?? []);
-    setCompletedTasks(plan?.planItems?.returnToWorkChecklist ?? []);
-  }, [user]);
+  }, [plan.profession]);
 
-  const savePlan = async (updatedExerciseLog?: string[], updatedChecklist?: string[]) => {
-    if (!user) return;
-    setSaving(true);
-    setErrorMessage(null);
-    setStatusMessage(null);
-
-    try {
-      const payload = {
-        profession: formState.profession || undefined,
-        employer: formState.employer || undefined,
-        breakStartDate: formState.breakStartDate || undefined,
-        returnDate: formState.returnDate || undefined,
-        planItems: {
-          workBeforePregnancy: formState.workBeforePregnancy || undefined,
-          maternityLeave: formState.maternityLeave || undefined,
-          stayAtHomeDuration: formState.stayAtHomeDuration || undefined,
-          planningCareerChange: formState.planningCareerChange || undefined,
-          stayConnectedBusiness: formState.stayConnectedBusiness || undefined,
-          exerciseLog: updatedExerciseLog ?? exerciseLog,
-          returnToWorkChecklist: updatedChecklist ?? completedTasks,
-        },
-      };
-
-      const response = (await api.post("/auth/career-plan", payload)) as CareerPlan;
-      setCareerPlan(response);
-      setExerciseLog(response.planItems?.exerciseLog ?? []);
-      setStatusMessage("Career plan saved successfully.");
-    } catch (error: unknown) {
-      setErrorMessage(error instanceof Error ? error.message : "Unable to save your plan.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleCompleteExercise = async () => {
-    const today = new Date().toISOString().slice(0, 10);
-    const nextLog = exerciseLog.includes(today) ? exerciseLog : [today, ...exerciseLog].slice(0, 30);
-    setExerciseLog(nextLog);
-    await savePlan(nextLog, undefined);
-  };
-
-  const returnToWorkTasks = useMemo(() => {
-    if (daysSinceBirth === null || daysSinceBirth < 42) {
-      return [];
-    }
-
+  const milestones = useMemo(() => {
+    if (daysSinceBirth === null || daysSinceBirth < 42) return [];
     return [
       "Check in with your doctor about a safe first return-to-work step.",
       "Review flexible work or caregiving options with your employer.",
@@ -170,257 +221,482 @@ export default function CareerPage() {
     ];
   }, [daysSinceBirth]);
 
-  const toggleReturnTask = async (task: string) => {
-    const nextTasks = completedTasks.includes(task)
-      ? completedTasks.filter((item) => item !== task)
-      : [...completedTasks, task];
-    setCompletedTasks(nextTasks);
-    await savePlan(undefined, nextTasks);
-  };
+  return (
+    <div className="space-y-6">
+      {/* ── Header card ───────────────────────────────────────────────────── */}
+      <Card className="rounded-3xl border-none shadow-lg p-6 bg-gradient-to-br from-primary/10 via-primary/5 to-background">
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <Briefcase className="w-5 h-5 text-primary" />
+              <h3>{plan.profession ?? "Your career plan"}</h3>
+            </div>
+            {plan.employer && (
+              <p className="text-sm text-muted-foreground">{plan.employer}</p>
+            )}
+          </div>
+          <Button
+            id="career-edit-btn"
+            variant="outline"
+            size="sm"
+            onClick={onEdit}
+            className="rounded-full gap-1"
+          >
+            <Edit3 className="w-3.5 h-3.5" />
+            Edit plan
+          </Button>
+        </div>
 
-  const completedToday = exerciseLog.includes(new Date().toISOString().slice(0, 10));
-  const recentExerciseCount = exerciseLog.filter((date) => {
-    const day = new Date(date);
-    const weekAgo = new Date();
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    return day >= weekAgo;
-  }).length;
+        <CareerTimeline
+          breakStartDate={plan.breakStartDate}
+          returnDate={plan.returnDate}
+        />
+      </Card>
+
+      {/* ── Return-to-work milestones ──────────────────────────────────────── */}
+      {milestones.length > 0 && (
+        <Card className="rounded-3xl border-none shadow-lg p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <TrendingUp className="w-5 h-5 text-primary" />
+            <h3>Return-to-work milestones</h3>
+          </div>
+          <p className="text-sm text-muted-foreground mb-4">
+            Gentle steps to ease back into work after 6 weeks postpartum.
+          </p>
+          <div className="space-y-3">
+            {milestones.map((task) => {
+              const done = completedTasks.includes(task);
+              return (
+                <button
+                  key={task}
+                  id={`milestone-${task.slice(0, 20).replace(/\s/g, "-")}`}
+                  type="button"
+                  onClick={() => toggleReturnTask(task)}
+                  disabled={saving}
+                  className={`w-full rounded-2xl border p-4 text-left transition-all duration-200 ${
+                    done
+                      ? "border-primary/40 bg-primary/8 text-primary"
+                      : "border-muted/30 bg-muted/5 text-foreground hover:bg-muted/10"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <CheckCircle2
+                      className={`w-4 h-4 flex-shrink-0 ${done ? "text-primary fill-primary/20" : "text-muted-foreground"}`}
+                    />
+                    <span className={`text-sm ${done ? "line-through opacity-60" : ""}`}>
+                      {task}
+                    </span>
+                    <span className="ml-auto text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      {done ? "Done" : "Mark done"}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+
+      {/* ── Career insight (DDG / static) ─────────────────────────────────── */}
+      <Card className="rounded-3xl border-none shadow-lg p-6 bg-gradient-to-br from-accent/10 to-background">
+        <div className="flex items-center gap-3 mb-4">
+          <Lightbulb className="w-5 h-5 text-accent-foreground" />
+          <h3>Career insight</h3>
+        </div>
+
+        {insightLoading ? (
+          <div className="space-y-2">
+            <div className="h-3 bg-muted/40 rounded animate-pulse w-full" />
+            <div className="h-3 bg-muted/40 rounded animate-pulse w-5/6" />
+            <div className="h-3 bg-muted/40 rounded animate-pulse w-4/6" />
+          </div>
+        ) : insight ? (
+          <div className="space-y-3">
+            <p className="text-sm leading-relaxed">{insight.text}</p>
+            {insight.url && (
+              <a
+                href={insight.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+              >
+                Read more <ExternalLink className="w-3 h-3" />
+              </a>
+            )}
+            <p className="text-xs text-muted-foreground">Source: DuckDuckGo</p>
+          </div>
+        ) : (
+          <p className="text-sm leading-relaxed">
+            {plan.profession ? getStaticTip(plan.profession) : getStaticTip("default")}
+          </p>
+        )}
+      </Card>
+
+      {/* ── Plan details summary ───────────────────────────────────────────── */}
+      {plan.planItems && (
+        <Card className="rounded-3xl border-none shadow-lg p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <Calendar className="w-5 h-5 text-primary" />
+            <h3>Your plan summary</h3>
+          </div>
+          <div className="space-y-3 text-sm">
+            {plan.planItems.maternityLeave && (
+              <div className="flex justify-between py-2 border-b border-muted/20">
+                <span className="text-muted-foreground">Maternity leave</span>
+                <span>{plan.planItems.maternityLeave}</span>
+              </div>
+            )}
+            {plan.planItems.stayAtHomeDuration && (
+              <div className="flex justify-between py-2 border-b border-muted/20">
+                <span className="text-muted-foreground">Staying home</span>
+                <span>{plan.planItems.stayAtHomeDuration}</span>
+              </div>
+            )}
+            {plan.planItems.planningCareerChange && (
+              <div className="flex justify-between py-2 border-b border-muted/20">
+                <span className="text-muted-foreground">Career change?</span>
+                <span>{plan.planItems.planningCareerChange}</span>
+              </div>
+            )}
+            {plan.planItems.workBeforePregnancy && (
+              <div className="pt-2">
+                <p className="text-muted-foreground mb-1">Before pregnancy</p>
+                <p className="leading-relaxed">{plan.planItems.workBeforePregnancy}</p>
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default function CareerPage() {
+  const { user, loading } = useUserProfile();
+  const [careerPlan, setCareerPlan] = useState<CareerPlan | null>(null);
+  const [formState, setFormState] = useState(defaultForm);
+  const [completedTasks, setCompletedTasks] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+
+  const firstName = user?.name?.split(" ")[0] ?? "there";
+  const stageLabel = user?.babyBirthDate
+    ? "Postpartum transition"
+    : user?.dueDate
+    ? "Pregnancy transition"
+    : "Career transition";
+
+  const daysSinceBirth = useMemo(() => {
+    if (!user?.babyBirthDate) return null;
+    return Math.max(
+      0,
+      Math.floor(
+        (Date.now() - new Date(user.babyBirthDate).getTime()) / 86400000
+      )
+    );
+  }, [user?.babyBirthDate]);
+
+  // ── Populate form from loaded profile ─────────────────────────────────────
+  useEffect(() => {
+    if (!user) return;
+    const plan = user.careerPlan ?? null;
+    setCareerPlan(plan);
+
+    if (plan) {
+      setFormState({
+        profession: plan.profession ?? "",
+        employer: plan.employer ?? "",
+        workBeforePregnancy: plan.planItems?.workBeforePregnancy ?? "",
+        maternityLeave: plan.planItems?.maternityLeave ?? "",
+        stayAtHomeDuration: plan.planItems?.stayAtHomeDuration ?? "",
+        planningCareerChange: plan.planItems?.planningCareerChange ?? "",
+        stayConnectedBusiness: plan.planItems?.stayConnectedBusiness ?? "",
+        breakStartDate: plan.breakStartDate ? plan.breakStartDate.slice(0, 10) : "",
+        returnDate: plan.returnDate ? plan.returnDate.slice(0, 10) : "",
+      });
+      setCompletedTasks(plan.planItems?.returnToWorkChecklist ?? []);
+      // Plan exists → show dashboard, not form
+      setIsEditing(false);
+    } else {
+      // No plan saved yet → show form
+      setIsEditing(true);
+    }
+  }, [user]);
+
+  // ── Save ──────────────────────────────────────────────────────────────────
+  const savePlan = useCallback(
+    async (updatedChecklist?: string[]) => {
+      if (!user) return;
+      setSaving(true);
+      setErrorMessage(null);
+      setStatusMessage(null);
+
+      try {
+        const payload = {
+          profession: formState.profession || undefined,
+          employer: formState.employer || undefined,
+          breakStartDate: formState.breakStartDate || undefined,
+          returnDate: formState.returnDate || undefined,
+          planItems: {
+            workBeforePregnancy: formState.workBeforePregnancy || undefined,
+            maternityLeave: formState.maternityLeave || undefined,
+            stayAtHomeDuration: formState.stayAtHomeDuration || undefined,
+            planningCareerChange: formState.planningCareerChange || undefined,
+            stayConnectedBusiness: formState.stayConnectedBusiness || undefined,
+            returnToWorkChecklist: updatedChecklist ?? completedTasks,
+          },
+        };
+
+        const response = (await api.post("/auth/career-plan", payload)) as CareerPlan;
+        setCareerPlan(response);
+        setStatusMessage("Career plan saved!");
+        // Switch to dashboard view on successful save
+        setIsEditing(false);
+      } catch (error: unknown) {
+        setErrorMessage(
+          error instanceof Error ? error.message : "Unable to save your plan."
+        );
+      } finally {
+        setSaving(false);
+      }
+    },
+    [user, formState, completedTasks]
+  );
+
+  const toggleReturnTask = useCallback(
+    async (task: string) => {
+      const next = completedTasks.includes(task)
+        ? completedTasks.filter((t) => t !== task)
+        : [...completedTasks, task];
+      setCompletedTasks(next);
+      await savePlan(next);
+    },
+    [completedTasks, savePlan]
+  );
+
+  const hasPlan = Boolean(careerPlan?.profession);
 
   return (
     <AppShell>
-      <div className="min-h-screen bg-background p-4 md:p-8">
-        <h1 className="text-2xl md:text-3xl mb-4">{headline}</h1>
-        <Card className="rounded-3xl border-none shadow-lg p-6 mb-6">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground mb-2">{stageLabel}</p>
-              <p className="text-base text-foreground max-w-2xl">{introText}</p>
-            </div>
-            <div className="rounded-3xl bg-primary/5 p-4 text-sm text-primary">
-              {user?.babyBirthDate
-                ? daysSinceBirth !== null
-                  ? `${daysSinceBirth} days postpartum`
-                  : "Postpartum stage"
-                : user?.dueDate
-                ? "Pregnancy stage"
-                : "Career planning stage"}
-            </div>
+      <div className="min-h-screen bg-background pb-8">
+        {/* ── Hero ──────────────────────────────────────────────────────────── */}
+        <div className="bg-gradient-to-br from-primary/20 via-secondary/10 to-background px-4 md:px-8 pt-8 pb-8 rounded-b-[3rem]">
+          <div className="max-w-4xl mx-auto">
+            <h1 className="text-2xl md:text-3xl mb-2">Career Journey for {firstName}</h1>
+            <p className="text-muted-foreground">{stageLabel}</p>
           </div>
-        </Card>
+        </div>
 
-        <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
-          <div className="space-y-6">
-            <Card className="rounded-3xl border-none shadow-lg p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <Briefcase className="w-5 h-5 text-primary" />
-                <h3>Your work and leave plans</h3>
+        <div className="max-w-4xl mx-auto px-4 md:px-8 mt-6 space-y-6">
+          {loading ? (
+            <Card className="rounded-3xl border-none shadow-lg p-8 text-center">
+              <p className="text-muted-foreground animate-pulse">Loading your career plan…</p>
+            </Card>
+          ) : hasPlan && !isEditing ? (
+            /* ── Dashboard View ──────────────────────────────────────────── */
+            <>
+              <div className="flex items-center gap-2 mb-2">
+                <Sparkles className="w-5 h-5 text-primary" />
+                <p className="text-sm text-muted-foreground">
+                  Your career plan is saved. Track milestones and insights below.
+                </p>
               </div>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">What were you doing before or during pregnancy?</label>
-                  <Textarea
-                    value={formState.workBeforePregnancy}
-                    onChange={(event) => setFormState((prev) => ({ ...prev, workBeforePregnancy: event.target.value }))}
-                    placeholder="Example: working full-time in marketing, part-time freelance, or focused on family care."
-                    rows={4}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">Are you getting maternity leave?</label>
-                  <Input
-                    value={formState.maternityLeave}
-                    onChange={(event) => setFormState((prev) => ({ ...prev, maternityLeave: event.target.value }))}
-                    placeholder="Yes, at least 12 weeks / No / Unsure"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">How long do you plan to stay at home?</label>
-                  <Input
-                    value={formState.stayAtHomeDuration}
-                    onChange={(event) => setFormState((prev) => ({ ...prev, stayAtHomeDuration: event.target.value }))}
-                    placeholder="3 months, 6 months, until baby is 1 year old"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">Are you planning a career change?</label>
-                  <Input
-                    value={formState.planningCareerChange}
-                    onChange={(event) => setFormState((prev) => ({ ...prev, planningCareerChange: event.target.value }))}
-                    placeholder="Yes / No / Thinking about it"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">Would you like to stay connected to your business or industry?</label>
-                  <Textarea
-                    value={formState.stayConnectedBusiness}
-                    onChange={(event) => setFormState((prev) => ({ ...prev, stayConnectedBusiness: event.target.value }))}
-                    placeholder="Example: receive newsletters, maintain a small project, stay in touch with colleagues."
-                    rows={3}
-                  />
-                </div>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Current role or profession</label>
-                    <Input
-                      value={formState.profession}
-                      onChange={(event) => setFormState((prev) => ({ ...prev, profession: event.target.value }))}
-                      placeholder="e.g. product manager, teacher, software engineer"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Employer or business name</label>
-                    <Input
-                      value={formState.employer}
-                      onChange={(event) => setFormState((prev) => ({ ...prev, employer: event.target.value }))}
-                      placeholder="e.g. Acme Health, freelance, startup founder"
-                    />
-                  </div>
-                </div>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Maternity leave start date</label>
-                    <Input
-                      type="date"
-                      value={formState.breakStartDate}
-                      onChange={(event) => setFormState((prev) => ({ ...prev, breakStartDate: event.target.value }))}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Return-to-work target date</label>
-                    <Input
-                      type="date"
-                      value={formState.returnDate}
-                      onChange={(event) => setFormState((prev) => ({ ...prev, returnDate: event.target.value }))}
-                    />
-                  </div>
-                </div>
-                {errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
-                {statusMessage ? <p className="text-sm text-primary">{statusMessage}</p> : null}
+              <CareerDashboard
+                plan={careerPlan!}
+                daysSinceBirth={daysSinceBirth}
+                completedTasks={completedTasks}
+                toggleReturnTask={toggleReturnTask}
+                saving={saving}
+                onEdit={() => setIsEditing(true)}
+              />
+            </>
+          ) : (
+            /* ── Form View ───────────────────────────────────────────────── */
+            <>
+              {hasPlan && (
                 <div className="flex justify-end">
-                  <Button onClick={() => savePlan()} disabled={saving}>
-                    {saving ? "Saving…" : "Save career plan"}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsEditing(false)}
+                    className="rounded-full text-muted-foreground"
+                  >
+                    ← Back to dashboard
                   </Button>
                 </div>
-              </div>
-            </Card>
+              )}
 
-            <Card className="rounded-3xl border-none shadow-lg p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <Sparkles className="w-5 h-5 text-primary" />
-                <h3>Suggested guidance</h3>
-              </div>
-              <div className="space-y-3">
-                {suggestionItems.map((item, index) => (
-                  <div key={index} className="rounded-3xl bg-muted/10 p-4">
-                    <p className="text-sm">{item}</p>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          </div>
-
-          <div className="space-y-6">
-            <Card className="rounded-3xl border-none shadow-lg p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <Star className="w-5 h-5 text-primary" />
-                <h3>Latest career news</h3>
-              </div>
-              <div className="space-y-3 text-sm text-muted-foreground">
-                <p>
-                  We will use your leave timeline and career goals to suggest helpful actions, from stay-at-home planning to gentle business reconnection.
-                </p>
-                {user?.babyBirthDate && daysSinceBirth !== null ? (
-                  <p>
-                    {daysSinceBirth < 42
-                      ? "During the first 6 weeks after birth, the focus is on recovery and rest."
-                      : "After 6 weeks postpartum, you can begin reconnecting to work with small, supportive steps."}
-                  </p>
-                ) : user?.dueDate ? (
-                  <p>Preparing before baby arrives helps you return to work with less stress and more clarity.</p>
-                ) : (
-                  <p>Fill in the questions above and save your plan to see personalized career recommendations.</p>
-                )}
-              </div>
-            </Card>
-
-            {returnToWorkTasks.length ? (
               <Card className="rounded-3xl border-none shadow-lg p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <Calendar className="w-5 h-5 text-primary" />
-                  <h3>Return-to-work checklist</h3>
+                <div className="flex items-center gap-3 mb-6">
+                  <Briefcase className="w-5 h-5 text-primary" />
+                  <h3>Your work and leave plans</h3>
                 </div>
-                <p className="text-sm text-muted-foreground mb-4">
-                  After 6 weeks postpartum, these gentle steps can help you move back toward work or business involvement.
-                </p>
-                <div className="space-y-3">
-                  {returnToWorkTasks.map((task) => {
-                    const done = completedTasks.includes(task);
-                    return (
-                      <button
-                        key={task}
-                        type="button"
-                        onClick={() => toggleReturnTask(task)}
-                        className={`w-full rounded-3xl border p-4 text-left transition ${
-                          done
-                            ? 'border-primary/50 bg-primary/10 text-primary'
-                            : 'border-muted/30 bg-muted/5 text-foreground'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="text-sm">{task}</span>
-                          <span className="text-xs font-semibold uppercase tracking-[0.12em]">
-                            {done ? 'Done' : 'Mark done'}
-                          </span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </Card>
-            ) : null}
-
-            <Card className="rounded-3xl border-none shadow-lg p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <CheckCircle2 className="w-5 h-5 text-primary" />
-                <h3>Body recovery tracker</h3>
-              </div>
-              <p className="text-sm text-muted-foreground mb-4">
-                Track exercises and recovery habits so you can see progress over time.
-              </p>
-              <div className="space-y-4">
-                <div className="rounded-3xl bg-muted/10 p-4">
-                  <p className="text-sm">Completed in the last 7 days: {recentExerciseCount}</p>
-                  <p className="text-sm">{completedToday ? "You’ve completed today’s activity." : "Tap the button when you complete today’s exercise."}</p>
-                </div>
-                <Button onClick={handleCompleteExercise} disabled={saving || completedToday}>
-                  {completedToday ? "Completed today" : "I completed today’s exercise"}
-                </Button>
-                {exerciseLog.length ? (
-                  <div className="rounded-3xl bg-muted/10 p-4">
-                    <p className="text-sm font-medium mb-2">Recent exercise dates</p>
-                    <div className="space-y-1 text-sm text-muted-foreground">
-                      {exerciseLog.slice(0, 7).map((date) => (
-                        <p key={date}>{date}</p>
-                      ))}
+                <div className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Current role or profession
+                      </label>
+                      <Input
+                        id="career-profession"
+                        value={formState.profession}
+                        onChange={(e) =>
+                          setFormState((p) => ({ ...p, profession: e.target.value }))
+                        }
+                        placeholder="e.g. product manager, teacher, software engineer"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Employer or business name
+                      </label>
+                      <Input
+                        id="career-employer"
+                        value={formState.employer}
+                        onChange={(e) =>
+                          setFormState((p) => ({ ...p, employer: e.target.value }))
+                        }
+                        placeholder="e.g. Acme Health, freelance, startup founder"
+                      />
                     </div>
                   </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">No exercise entries yet.</p>
-                )}
-              </div>
-            </Card>
 
-            <Card className="rounded-3xl border-none shadow-lg p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <BookOpen className="w-5 h-5 text-primary" />
-                <h3>What comes next</h3>
-              </div>
-              <div className="space-y-3 text-sm text-muted-foreground">
-                <p>After 6–7 weeks postpartum, we can begin connecting you to career resources, business check-ins, and gentle planning steps.</p>
-                <p>Use this space to save your career history and leave expectations, then check back for new recommendations.</p>
-              </div>
-            </Card>
-          </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      What were you doing before or during pregnancy?
+                    </label>
+                    <Textarea
+                      id="career-work-before"
+                      value={formState.workBeforePregnancy}
+                      onChange={(e) =>
+                        setFormState((p) => ({ ...p, workBeforePregnancy: e.target.value }))
+                      }
+                      placeholder="Example: working full-time in marketing, part-time freelance, or focused on family care."
+                      rows={3}
+                    />
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Are you getting maternity leave?
+                      </label>
+                      <Input
+                        id="career-maternity-leave"
+                        value={formState.maternityLeave}
+                        onChange={(e) =>
+                          setFormState((p) => ({ ...p, maternityLeave: e.target.value }))
+                        }
+                        placeholder="Yes, 12 weeks / No / Unsure"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        How long do you plan to stay at home?
+                      </label>
+                      <Input
+                        id="career-stay-home"
+                        value={formState.stayAtHomeDuration}
+                        onChange={(e) =>
+                          setFormState((p) => ({
+                            ...p,
+                            stayAtHomeDuration: e.target.value,
+                          }))
+                        }
+                        placeholder="3 months, 6 months, until baby is 1 year old"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Are you planning a career change?
+                    </label>
+                    <Input
+                      id="career-change"
+                      value={formState.planningCareerChange}
+                      onChange={(e) =>
+                        setFormState((p) => ({
+                          ...p,
+                          planningCareerChange: e.target.value,
+                        }))
+                      }
+                      placeholder="Yes / No / Thinking about it"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Would you like to stay connected to your business or industry?
+                    </label>
+                    <Textarea
+                      id="career-stay-connected"
+                      value={formState.stayConnectedBusiness}
+                      onChange={(e) =>
+                        setFormState((p) => ({
+                          ...p,
+                          stayConnectedBusiness: e.target.value,
+                        }))
+                      }
+                      placeholder="Example: newsletters, small project, stay in touch with colleagues."
+                      rows={2}
+                    />
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Leave start date
+                      </label>
+                      <Input
+                        id="career-break-start"
+                        type="date"
+                        value={formState.breakStartDate}
+                        onChange={(e) =>
+                          setFormState((p) => ({ ...p, breakStartDate: e.target.value }))
+                        }
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Return-to-work target date
+                      </label>
+                      <Input
+                        id="career-return-date"
+                        type="date"
+                        value={formState.returnDate}
+                        onChange={(e) =>
+                          setFormState((p) => ({ ...p, returnDate: e.target.value }))
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  {errorMessage && (
+                    <p className="text-sm text-destructive">{errorMessage}</p>
+                  )}
+                  {statusMessage && (
+                    <p className="text-sm text-primary">{statusMessage}</p>
+                  )}
+
+                  <div className="flex justify-end">
+                    <Button
+                      id="career-save-btn"
+                      onClick={() => savePlan()}
+                      disabled={saving}
+                      className="rounded-full px-8"
+                    >
+                      {saving ? "Saving…" : "Save career plan →"}
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            </>
+          )}
         </div>
       </div>
     </AppShell>

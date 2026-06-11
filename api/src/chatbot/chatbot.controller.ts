@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Req, Headers, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Req, Headers, UseGuards } from '@nestjs/common';
 import { ChatbotService } from './chatbot.service';
 import { ChatbotAuthGuard } from './chatbot-auth.guard';
 
@@ -21,5 +21,15 @@ export class ChatbotController {
 
     console.log(`[ChatbotController] Processing message for userId: ${userId}`);
     return this.chatbotService.processUserMessage(userId, body.message);
+  }
+
+  /**
+   * GET /chatbot/health
+   * Public endpoint — no auth guard.
+   * Proxies to the ML service /health so the frontend can show a status indicator.
+   */
+  @Get('health')
+  async getMlHealth() {
+    return this.chatbotService.checkMlHealth();
   }
 }

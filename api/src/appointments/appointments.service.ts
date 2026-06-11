@@ -1,28 +1,13 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from 'prisma/prisma.service';
-
-export class CreateAppointmentDto {
-  title: string;
-  doctorName?: string;
-  location?: string;
-  date?: string;
-  dateTime?: string;
-  description?: string;
-  notes?: string;
-  reminder?: boolean;
-}
-
-export class UpdateAppointmentDto {
-  title?: string;
-  doctorName?: string;
-  location?: string;
-  date?: string;
-  dateTime?: string;
-  description?: string;
-  notes?: string;
-  reminder?: boolean;
-  completed?: boolean;
-}
+import {
+  CreateAppointmentDto,
+  UpdateAppointmentDto,
+} from './dto/create-appointment.dto';
 
 @Injectable()
 export class AppointmentsService {
@@ -31,39 +16,36 @@ export class AppointmentsService {
   findAll(userId: string) {
     return this.prisma.appointment.findMany({
       where: { userId },
-      orderBy: { dateTime: 'asc' },
+      orderBy: { date: 'asc' },
     });
   }
 
   create(userId: string, dto: CreateAppointmentDto) {
-    const rawDate = dto.date ?? dto.dateTime;
     return this.prisma.appointment.create({
       data: {
         userId,
         title: dto.title,
-        notes: dto.description ?? dto.notes,
-        dateTime: rawDate ? new Date(rawDate) : new Date(),
+        description: dto.description,
+        date: new Date(dto.date),
         location: dto.location,
-        doctorName: dto.doctorName,
-        reminded: dto.reminder ?? false,
+        type: dto.type ?? 'CHECKUP',
+        reminder: dto.reminder ?? true,
       },
     });
   }
 
   async update(userId: string, id: string, dto: UpdateAppointmentDto) {
     await this.assertOwner(userId, id);
-    const rawDate = dto.date ?? dto.dateTime;
     return this.prisma.appointment.update({
       where: { id },
       data: {
-        ...(dto.title     && { title: dto.title }),
-        ...(dto.doctorName !== undefined && { doctorName: dto.doctorName }),
-        ...(dto.location  !== undefined && { location: dto.location }),
-        ...(rawDate       && { dateTime: new Date(rawDate) }),
-        ...((dto.description ?? dto.notes) !== undefined && {
-          notes: dto.description ?? dto.notes,
-        }),
-        ...(dto.reminder  !== undefined && { reminded: dto.reminder }),
+        title: dto.title,
+        description: dto.description,
+        date: dto.date ? new Date(dto.date) : undefined,
+        location: dto.location,
+        type: dto.type,
+        reminder: dto.reminder,
+        completed: dto.completed,
       },
     });
   }

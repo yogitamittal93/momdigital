@@ -127,7 +127,14 @@ export default function ChildCarePage() {
   useEffect(() => {
     if (!hasBabyInfo) return;
     api.get("/feeding-logs?date=today")
-      .then((data: unknown) => setFeedings((data as FeedEntry[]) ?? []))
+      .then((data: any) => {
+        if (data && Array.isArray(data.logs)) {
+          setFeedings(data.logs);
+          if (data.lastUsedType) {
+            setFeedType(data.lastUsedType);
+          }
+        }
+      })
       .catch(() => {});
   }, [hasBabyInfo]);
 

@@ -72,10 +72,38 @@ export class NannyService {
     notes?: string,
   ) {
     const checksData = notes ? { ...checks, __notes: notes } : checks;
+
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const endOfToday = new Date(startOfToday);
+    endOfToday.setDate(endOfToday.getDate() + 1);
+
+    const existing = await this.prisma.trustedHelperCheck.findFirst({
+      where: {
+        userId,
+        helperType,
+        checkedAt: {
+          gte: startOfToday,
+          lt: endOfToday,
+        },
+      },
+    });
+
+    if (existing) {
+      return this.prisma.trustedHelperCheck.update({
+        where: { id: existing.id },
+        data: {
+          checks: checksData as any,
+          score,
+        },
+      });
+    }
+
     return this.prisma.trustedHelperCheck.create({
-      data: { userId, helperType, checks: checksData, score },
+      data: { userId, helperType, checks: checksData as any, score },
     });
   }
+
 
   async getChecks(userId: string, helperType?: string, limit = 10) {
     return this.prisma.trustedHelperCheck.findMany({
