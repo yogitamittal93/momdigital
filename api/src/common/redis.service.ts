@@ -15,17 +15,26 @@ export class RedisService implements OnModuleDestroy {
     }
 
     try {
+      const isProduction = this.configService.get<string>('NODE_ENV') === 'production';
       this.redis = new Redis(redisUrl, {
         lazyConnect: true,
-        maxRetriesPerRequest: 1,
-        retryStrategy: () => null, // stop retrying — no Redis in local dev
+        maxRetriesPerRequest: isProduction ? 3 : 1,
+        retryStrategy: (times) => {
+          if (!isProduction && times > 1) {
+            return null; // stop retrying in local dev to avoid console spam
+          }
+          // Exponential backoff reconnect: 500ms, 1000ms, 2000ms, up to 5000ms
+          return Math.min(times * 500, 5000);
+        },
         enableOfflineQueue: false,
       });
 
       // Suppress unhandled error events — log once and move on
       this.redis.on('error', (err: Error) => {
-        this.logger.warn(`Redis connection error (caching disabled): ${err.message}`);
-        this.redis?.disconnect();
+        this.logger.warn(`Redis connection error: ${err.message}`);
+        if (!isProduction) {
+          this.redis?.disconnect(); // disconnect in dev to prevent terminal spam
+        }
       });
     } catch (e) {
       this.logger.warn('Failed to initialize Redis client — caching disabled');

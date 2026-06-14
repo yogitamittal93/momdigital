@@ -1,21 +1,41 @@
-# Use Node 22 (LTS) for 2026 compatibility
-FROM node:22-alpine
+# api/Dockerfile
+# Multi-stage build — keeps the final image lean (~200MB vs ~600MB single-stage)
+
+# ── Stage 1: Build ────────────────────────────────────────────────────────────
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Install dependencies first (for better caching)
+# Copy manifests first so Docker cache is reused when only source changes
 COPY package*.json ./
-RUN npm install
+RUN npm ci --frozen-lockfile
 
-# Copy the rest of the code
+# Copy source and generate Prisma client for the Linux target
 COPY . .
-
-# Generate Prisma Client specifically for the Linux container
 RUN npx prisma generate
-
-# Build the NestJS app
 RUN npm run build
 
-EXPOSE 3000
+# ── Stage 2: Production runtime ───────────────────────────────────────────────
+FROM node:22-alpine AS runner
 
-CMD ["npm", "run", "start:dev"]
+WORKDIR /app
+
+# Only install production dependencies in the final image
+COPY package*.json ./
+RUN npm ci --frozen-lockfile --omit=dev
+
+# Copy compiled output and Prisma artefacts from builder
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+COPY prisma ./prisma
+
+# Non-root user for security
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+USER appuser
+
+# Correct port — NestJS listens on 3001 (matches compose + config.validation.ts)
+EXPOSE 3001
+
+# Production start — NOT start:dev
+CMD ["node", "dist/main.js"]

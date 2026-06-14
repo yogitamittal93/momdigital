@@ -28,6 +28,7 @@
     "@nestjs/jwt": "^11.0.2",
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/throttler": "^6.5.0",
     "@prisma/client": "^5.22.0",
     "axios": "^1.15.2",
     "bcrypt": "^6.0.0",
@@ -89,6 +90,10 @@
       "**/*.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "moduleNameMapper": {
+      "^prisma/(.*)$": "<rootDir>/../prisma/$1",
+      "^src/(.*)$": "<rootDir>/$1"
+    }
   }
 }
