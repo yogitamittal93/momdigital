@@ -16,7 +16,8 @@ class EnvironmentVariables {
   NODE_ENV: string = 'development';
 
   @Matches(/^postgresql?:\/\//, {
-    message: 'DATABASE_URL must be a valid postgres connection string starting with postgresql:// or postgres://',
+    message:
+      'DATABASE_URL must be a valid postgres connection string starting with postgresql:// or postgres://',
   })
   DATABASE_URL!: string;
 
@@ -32,9 +33,13 @@ class EnvironmentVariables {
   @IsNotEmpty()
   GROQ_API_KEY!: string;
 
-  @IsUrl({ require_tld: false }, {
-    message: 'ML_SERVICE_URL must be a valid URL (TLD check disabled for internal/Docker hosts)',
-  })
+  @IsUrl(
+    { require_tld: false },
+    {
+      message:
+        'ML_SERVICE_URL must be a valid URL (TLD check disabled for internal/Docker hosts)',
+    },
+  )
   ML_SERVICE_URL!: string;
 
   @IsString()
@@ -69,7 +74,9 @@ export function validateConfig(config: Record<string, unknown>) {
         return `  - Env key '${err.property}' failed check: ${constraints}`;
       })
       .join('\n');
-    throw new Error(`\n❌ ENVIRONMENT STARTUP VALIDATION ERROR:\n${errorDetails}\n`);
+    throw new Error(
+      `\n❌ ENVIRONMENT STARTUP VALIDATION ERROR:\n${errorDetails}\n`,
+    );
   }
   return validated;
 }

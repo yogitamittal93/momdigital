@@ -14,10 +14,12 @@ describe('AuthController', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       imports: [
-        ThrottlerModule.forRoot([{
-          ttl: 60000,
-          limit: 10,
-        }]),
+        ThrottlerModule.forRoot([
+          {
+            ttl: 60000,
+            limit: 10,
+          },
+        ]),
       ],
       controllers: [AuthController],
       providers: [

@@ -6,7 +6,9 @@ import { ConfigService } from '@nestjs/config';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
-  const app = await NestFactory.create(AppModule, { logger: ['error', 'warn', 'log'] });
+  const app = await NestFactory.create(AppModule, {
+    logger: ['error', 'warn', 'log'],
+  });
   const configService = app.get(ConfigService);
 
   // ─── CORS ──────────────────────────────────────────────────────────────────
@@ -22,7 +24,11 @@ async function bootstrap() {
     configService.get<string>('CLIENT_URL') ?? 'http://localhost:3000';
 
   const allowedOrigins = Array.from(
-    new Set([frontendOrigin, ...clientUrls, fallbackClientUrl].filter(Boolean) as string[]),
+    new Set(
+      [frontendOrigin, ...clientUrls, fallbackClientUrl].filter(
+        Boolean,
+      ) as string[],
+    ),
   );
 
   app.enableCors({
@@ -56,7 +62,11 @@ async function bootstrap() {
   );
 
   // ─── Cookie parser ─────────────────────────────────────────────────────────
-  app.use(cookieParser());
+  app.use(
+    (cookieParser as unknown as () => any)() as unknown as Parameters<
+      typeof app.use
+    >[0],
+  );
 
   // ─── Listen ────────────────────────────────────────────────────────────────
   const port = configService.get<number>('PORT') ?? 3001;
@@ -65,4 +75,6 @@ async function bootstrap() {
   logger.log(`CORS: allowing origins → ${allowedOrigins.join(', ')}`);
 }
 
-bootstrap();
+bootstrap().catch((err) => {
+  console.error('Error starting server:', err);
+});

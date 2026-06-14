@@ -11,9 +11,9 @@ export class GitHubStrategy extends PassportStrategy(Strategy, 'github') {
     private readonly authService: AuthService,
   ) {
     super({
-      clientID:     config.getOrThrow<string>('GITHUB_CLIENT_ID'),
+      clientID: config.getOrThrow<string>('GITHUB_CLIENT_ID'),
       clientSecret: config.getOrThrow<string>('GITHUB_CLIENT_SECRET'),
-      callbackURL:  config.getOrThrow<string>('GITHUB_CALLBACK_URL'),
+      callbackURL: config.getOrThrow<string>('GITHUB_CALLBACK_URL'),
       scope: ['user:email'],
     });
   }
@@ -30,12 +30,12 @@ export class GitHubStrategy extends PassportStrategy(Strategy, 'github') {
       (profile as unknown as { _json: { email: string } })._json?.email ||
       '';
 
-    const name  = profile.displayName || profile.username || 'User';
+    const name = profile.displayName || profile.username || 'User';
     const photo = profile.photos?.[0]?.value ?? null;
 
     const user = await this.authService.findOrCreateOAuthUser({
-      provider:     'github',
-      providerId:   profile.id,
+      provider: 'github',
+      providerId: profile.id,
       email,
       name,
       profileImage: photo,

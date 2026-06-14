@@ -15,7 +15,8 @@ export class RedisService implements OnModuleDestroy {
     }
 
     try {
-      const isProduction = this.configService.get<string>('NODE_ENV') === 'production';
+      const isProduction =
+        this.configService.get<string>('NODE_ENV') === 'production';
       this.redis = new Redis(redisUrl, {
         lazyConnect: true,
         maxRetriesPerRequest: isProduction ? 3 : 1,
@@ -36,7 +37,7 @@ export class RedisService implements OnModuleDestroy {
           this.redis?.disconnect(); // disconnect in dev to prevent terminal spam
         }
       });
-    } catch (e) {
+    } catch {
       this.logger.warn('Failed to initialize Redis client — caching disabled');
       this.redis = null;
     }

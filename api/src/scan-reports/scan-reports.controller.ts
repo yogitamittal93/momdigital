@@ -14,8 +14,8 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import type { Response } from 'express';
-import { JwtGuard } from 'src/auth/jwt.gaurd';
+import type { Request, Response } from 'express';
+import { JwtGuard, JwtPayload } from 'src/auth/jwt.gaurd';
 import { UploadScanReportDto } from './dto/upload-scan-report.dto';
 import { ScanReportsService } from './scan-reports.service';
 import { ShareScanReportDto } from './dto/share-scan-report.dto';
@@ -32,7 +32,7 @@ export class ScanReportsController {
     }),
   )
   upload(
-    @Req() req: any,
+    @Req() req: Request & { user: JwtPayload },
     @UploadedFile() file: Express.Multer.File,
     @Body() dto: UploadScanReportDto,
   ) {
@@ -40,13 +40,13 @@ export class ScanReportsController {
   }
 
   @Get()
-  list(@Req() req: any) {
+  list(@Req() req: Request & { user: JwtPayload }) {
     return this.scanReportsService.listForUser(req.user.userId);
   }
 
   @Get(':id/file')
   async download(
-    @Req() req: any,
+    @Req() req: Request & { user: JwtPayload },
     @Param('id') reportId: string,
     @Res() res: Response,
   ) {
@@ -64,19 +64,25 @@ export class ScanReportsController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
-  async remove(@Req() req: any, @Param('id') reportId: string) {
+  async remove(
+    @Req() req: Request & { user: JwtPayload },
+    @Param('id') reportId: string,
+  ) {
     await this.scanReportsService.deleteForUser(req.user.userId, reportId);
     return { message: 'Scan report deleted' };
   }
 
   @Get(':id/shares')
-  listShares(@Req() req: any, @Param('id') reportId: string) {
+  listShares(
+    @Req() req: Request & { user: JwtPayload },
+    @Param('id') reportId: string,
+  ) {
     return this.scanReportsService.listShares(req.user.userId, reportId);
   }
 
   @Post(':id/shares')
   createShare(
-    @Req() req: any,
+    @Req() req: Request & { user: JwtPayload },
     @Param('id') reportId: string,
     @Body() dto: ShareScanReportDto,
   ) {
@@ -86,11 +92,15 @@ export class ScanReportsController {
   @Delete(':id/shares/:shareId')
   @HttpCode(HttpStatus.OK)
   async revokeShare(
-    @Req() req: any,
+    @Req() req: Request & { user: JwtPayload },
     @Param('id') reportId: string,
     @Param('shareId') shareId: string,
   ) {
-    await this.scanReportsService.revokeShare(req.user.userId, reportId, shareId);
+    await this.scanReportsService.revokeShare(
+      req.user.userId,
+      reportId,
+      shareId,
+    );
     return { message: 'Share revoked' };
   }
 }

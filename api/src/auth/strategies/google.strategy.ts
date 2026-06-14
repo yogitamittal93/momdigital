@@ -11,9 +11,9 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     private readonly authService: AuthService,
   ) {
     super({
-      clientID:     config.getOrThrow<string>('GOOGLE_CLIENT_ID'),
+      clientID: config.getOrThrow<string>('GOOGLE_CLIENT_ID'),
       clientSecret: config.getOrThrow<string>('GOOGLE_CLIENT_SECRET'),
-      callbackURL:  config.getOrThrow<string>('GOOGLE_CALLBACK_URL'),
+      callbackURL: config.getOrThrow<string>('GOOGLE_CALLBACK_URL'),
       scope: ['email', 'profile'],
     });
   }
@@ -25,17 +25,17 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     done: VerifyCallback,
   ) {
     const email = profile.emails?.[0]?.value;
-    const name  = profile.displayName || profile.name?.givenName || 'User';
+    const name = profile.displayName || profile.name?.givenName || 'User';
     const photo = profile.photos?.[0]?.value ?? null;
 
     const user = await this.authService.findOrCreateOAuthUser({
-      provider:       'google',
-      providerId:     profile.id,
-      email:          email ?? '',
+      provider: 'google',
+      providerId: profile.id,
+      email: email ?? '',
       name,
-      profileImage:   photo,
+      profileImage: photo,
       accessToken,
-      refreshToken:   refreshToken ?? null,
+      refreshToken: refreshToken ?? null,
     });
 
     done(null, user);

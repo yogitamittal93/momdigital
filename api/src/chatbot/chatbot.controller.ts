@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Body, Req, Headers, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Req,
+  Headers,
+  UseGuards,
+} from '@nestjs/common';
 import { ChatbotService } from './chatbot.service';
 import { ChatbotAuthGuard } from './chatbot-auth.guard';
 

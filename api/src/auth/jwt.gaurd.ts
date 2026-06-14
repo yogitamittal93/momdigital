@@ -8,6 +8,8 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { UserRole, ExpertStatus } from '@prisma/client';
 
+import type { Request } from 'express';
+
 export interface JwtPayload {
   userId: string;
   email: string;
@@ -25,8 +27,9 @@ export class JwtGuard implements CanActivate {
   ) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const request = context.switchToHttp().getRequest();
-    const token = request.cookies?.access_token as string | undefined;
+    const request = context.switchToHttp().getRequest<Request>();
+    const cookies = request.cookies as Record<string, string> | undefined;
+    const token = cookies?.access_token;
 
     if (!token) throw new UnauthorizedException('No token provided');
 

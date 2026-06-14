@@ -37,9 +37,8 @@ export class FeedingLogsService {
   }
 
   private parseDateRange(date?: string): { start: Date; end: Date } {
-    const base = date && date !== 'today'
-      ? new Date(`${date}T00:00:00`)
-      : new Date();
+    const base =
+      date && date !== 'today' ? new Date(`${date}T00:00:00`) : new Date();
 
     const start = new Date(base);
     start.setHours(0, 0, 0, 0);

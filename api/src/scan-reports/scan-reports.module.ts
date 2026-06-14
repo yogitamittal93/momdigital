@@ -10,4 +10,3 @@ import { ContentRequestsModule } from 'src/content-requests/content-requests.mod
   providers: [ScanReportsService],
 })
 export class ScanReportsModule {}
-

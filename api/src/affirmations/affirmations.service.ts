@@ -3,6 +3,14 @@ import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { ConfigService } from '@nestjs/config';
 
+interface ChatCompletion {
+  choices: Array<{
+    message?: {
+      content?: string | null;
+    };
+  }>;
+}
+
 const AFFIRMATIONS: Record<string, string[]> = {
   first_trimester: [
     'Your body is doing something remarkable. Trust the process.',
@@ -65,12 +73,15 @@ export class AffirmationsService {
     const stage = this.getStage(user);
     const firstName = user.name?.split(' ')[0] ?? 'dear one';
 
-    const stageContext = {
-      first_trimester: 'she is in her first trimester of pregnancy',
-      second_trimester: 'she is in her second trimester of pregnancy',
-      third_trimester: 'she is in her third trimester, getting close to birth',
-      postpartum: 'she has recently given birth and is in the postpartum recovery phase',
-    }[stage] ?? 'she is a mother';
+    const stageContext =
+      {
+        first_trimester: 'she is in her first trimester of pregnancy',
+        second_trimester: 'she is in her second trimester of pregnancy',
+        third_trimester:
+          'she is in her third trimester, getting close to birth',
+        postpartum:
+          'she has recently given birth and is in the postpartum recovery phase',
+      }[stage] ?? 'she is a mother';
 
     const prompt = [
       `Write one warm, personal affirmation for ${firstName}.`,
@@ -84,7 +95,9 @@ export class AffirmationsService {
       `- Address her by name (${firstName}) once`,
       `- Be encouraging but not generic`,
       `Return only the affirmation text, nothing else.`,
-    ].filter(Boolean).join(' ');
+    ]
+      .filter(Boolean)
+      .join(' ');
 
     try {
       const apiKey = this.config.getOrThrow<string>('GROQ_API_KEY');
@@ -97,16 +110,29 @@ export class AffirmationsService {
             max_tokens: 150,
             temperature: 0.8,
           },
-          { headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' } },
+          {
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              'Content-Type': 'application/json',
+            },
+          },
         ),
       );
 
-      const message = response.data?.choices?.[0]?.message?.content?.trim();
+      const result = response.data as ChatCompletion;
+      const message = result.choices[0]?.message?.content?.trim() ?? '';
       if (message) {
-        return { message, stage, title: this.stageTitle(stage), generated: true };
+        return {
+          message,
+          stage,
+          title: this.stageTitle(stage),
+          generated: true,
+        };
       }
     } catch (err) {
-      this.logger.warn(`Groq affirmation generation failed: ${(err as Error).message}`);
+      this.logger.warn(
+        `Groq affirmation generation failed: ${(err as Error).message}`,
+      );
     }
 
     // Fallback to static

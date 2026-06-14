@@ -8,7 +8,7 @@ import { RoutingService } from 'src/routing/routing.service';
 import { AppConfigService } from 'src/common/app-config.service';
 import { SubmitContentRequestDto } from './dto/submit-content-request.dto';
 import { ReviewActionDto } from './dto/review-action.dto';
-import { ReviewStatus, UserRole } from '@prisma/client';
+import { ReviewStatus, UserRole, Prisma } from '@prisma/client';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { ConfigService } from '@nestjs/config';
@@ -25,7 +25,9 @@ export class ContentRequestsService {
   // ─── Mother-facing ─────────────────────────────────────────────────────────
 
   async submit(userId: string, dto: SubmitContentRequestDto) {
-    const context = dto.context ? JSON.parse(dto.context) : undefined;
+    const context = dto.context
+      ? (JSON.parse(dto.context) as Record<string, unknown>)
+      : undefined;
 
     const { roles, mlResponse, mlConfidence } = await this.routing.route(
       dto.requestType,
@@ -39,7 +41,7 @@ export class ContentRequestsService {
         uploadedById: userId,
         scanReportId: dto.scanReportId,
         questionText: dto.questionText,
-        context,
+        context: (context ?? Prisma.JsonNull) as Prisma.InputJsonValue,
         routedRoles: roles,
         mlResponse,
         mlConfidence,
@@ -97,7 +99,7 @@ export class ContentRequestsService {
 
   // ─── Expert-facing ─────────────────────────────────────────────────────────
 
-  async getQueue(expertId: string, expertRole: UserRole) {
+  async getQueue(expertId: string) {
     return this.prisma.expertAssignment.findMany({
       where: {
         expertId,
@@ -119,7 +121,12 @@ export class ContentRequestsService {
               select: { id: true, dueDate: true, babyBirthDate: true },
             },
             scanReport: {
-              select: { id: true, originalName: true, mimeType: true, createdAt: true },
+              select: {
+                id: true,
+                originalName: true,
+                mimeType: true,
+                createdAt: true,
+              },
             },
           },
         },
@@ -200,7 +207,7 @@ export class ContentRequestsService {
       },
     });
 
-    // Return full mother profile (admin is notified via audit log — 
+    // Return full mother profile (admin is notified via audit log —
     // real-time notification can be added when notification service exists)
     const mother = await this.prisma.user.findUnique({
       where: { id: assignment.request.uploadedById },
@@ -213,18 +220,33 @@ export class ContentRequestsService {
   // ─── Review Actions ────────────────────────────────────────────────────────
 
   async approve(expertId: string, assignmentId: string, dto: ReviewActionDto) {
-    return this.performAction(expertId, assignmentId, ReviewStatus.APPROVED, dto.note);
+    return this.performAction(
+      expertId,
+      assignmentId,
+      ReviewStatus.APPROVED,
+      dto.note,
+    );
   }
 
   async flag(expertId: string, assignmentId: string, dto: ReviewActionDto) {
-    return this.performAction(expertId, assignmentId, ReviewStatus.FLAGGED, dto.note);
+    return this.performAction(
+      expertId,
+      assignmentId,
+      ReviewStatus.FLAGGED,
+      dto.note,
+    );
   }
 
   async addNote(expertId: string, assignmentId: string, dto: ReviewActionDto) {
     if (!dto.note) {
       throw new ForbiddenException('Note text is required');
     }
-    return this.performAction(expertId, assignmentId, ReviewStatus.NEEDS_MORE_INFO, dto.note);
+    return this.performAction(
+      expertId,
+      assignmentId,
+      ReviewStatus.NEEDS_MORE_INFO,
+      dto.note,
+    );
   }
 
   private async performAction(

@@ -28,8 +28,14 @@ export class RoutingService {
 
     if (mlWebhookUrl) {
       try {
-        const result = await this.callMlWebhook(mlWebhookUrl, requestType, context);
-        this.logger.log(`ML routed ${requestType} → ${result.roles.join(', ')}`);
+        const result = await this.callMlWebhook(
+          mlWebhookUrl,
+          requestType,
+          context,
+        );
+        this.logger.log(
+          `ML routed ${requestType} → ${result.roles.join(', ')}`,
+        );
         return result;
       } catch (err) {
         this.logger.warn(`ML webhook failed, falling back to rules: ${err}`);
@@ -70,7 +76,11 @@ export class RoutingService {
     url: string,
     requestType: ContentRequestType,
     context?: Record<string, unknown>,
-  ): Promise<{ roles: UserRole[]; mlResponse?: string; mlConfidence?: number }> {
+  ): Promise<{
+    roles: UserRole[];
+    mlResponse?: string;
+    mlConfidence?: number;
+  }> {
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

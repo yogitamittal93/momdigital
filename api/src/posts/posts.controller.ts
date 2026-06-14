@@ -13,10 +13,11 @@ import {
   ParseIntPipe,
   DefaultValuePipe,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { PostsService } from './posts.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { CreateCommentDto } from './dto/create-comment.dto';
-import { JwtGuard } from 'src/auth/jwt.gaurd';
+import { JwtGuard, JwtPayload } from 'src/auth/jwt.gaurd';
 
 @Controller('posts')
 @UseGuards(JwtGuard)
@@ -43,14 +44,17 @@ export class PostsController {
   /** POST /api/posts */
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  create(@Req() req: any, @Body() dto: CreatePostDto) {
+  create(
+    @Req() req: Request & { user: JwtPayload },
+    @Body() dto: CreatePostDto,
+  ) {
     return this.postsService.create(req.user.userId, dto);
   }
 
   /** POST /api/posts/:id/like — toggle */
   @Post(':id/like')
   @HttpCode(HttpStatus.OK)
-  like(@Param('id') id: string, @Req() req: any) {
+  like(@Param('id') id: string, @Req() req: Request & { user: JwtPayload }) {
     return this.postsService.toggleLike(id, req.user.userId);
   }
 
@@ -67,16 +71,23 @@ export class PostsController {
   @HttpCode(HttpStatus.CREATED)
   addComment(
     @Param('id') postId: string,
-    @Req() req: any,
+    @Req() req: Request & { user: JwtPayload },
     @Body() dto: CreateCommentDto,
   ) {
-    return this.postsService.createComment(postId, req.user.userId, dto.content);
+    return this.postsService.createComment(
+      postId,
+      req.user.userId,
+      dto.content,
+    );
   }
 
   /** DELETE /api/posts/:postId/comments/:commentId */
   @Delete(':postId/comments/:commentId')
   @HttpCode(HttpStatus.NO_CONTENT)
-  deleteComment(@Param('commentId') commentId: string, @Req() req: any) {
+  deleteComment(
+    @Param('commentId') commentId: string,
+    @Req() req: Request & { user: JwtPayload },
+  ) {
     return this.postsService.deleteComment(commentId, req.user.userId);
   }
 }

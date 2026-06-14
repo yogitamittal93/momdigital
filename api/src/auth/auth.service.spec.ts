@@ -76,7 +76,10 @@ describe('AuthService', () => {
 
   describe('register', () => {
     it('should throw ConflictException if user already exists', async () => {
-      mockPrisma.user.findUnique.mockResolvedValue({ id: 'existing-id', email: 'test@test.com' });
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'existing-id',
+        email: 'test@test.com',
+      });
 
       await expect(
         service.register({
