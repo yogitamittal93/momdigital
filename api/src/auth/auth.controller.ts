@@ -15,9 +15,24 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ConfigService } from '@nestjs/config';
+import { IsEmail, IsNotEmpty, MinLength } from 'class-validator';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { RegisterExpertDto } from './dto/register-expert.dto';
+
+class ForgotPasswordDto {
+  @IsEmail({}, { message: 'Please provide a valid email address' })
+  email!: string;
+}
+
+class ResetPasswordDto {
+  @IsNotEmpty({ message: 'Token is required' })
+  token!: string;
+
+  @IsNotEmpty({ message: 'Password is required' })
+  @MinLength(8, { message: 'Password must be at least 8 characters long' })
+  password!: string;
+}
 import { LoginDto } from './dto/login.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { CareerPlanDto } from './dto/career-plan.dto';
@@ -27,10 +42,12 @@ import { JwtGuard } from './jwt.gaurd';
 import { AdminGuard } from 'src/common/guards/admin.guard';
 import { GoogleOAuthGuard, GitHubOAuthGuard } from './guards/oauth.guard';
 import { PrismaService } from 'prisma/prisma.service';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { mkdir, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
 
+@UseGuards(ThrottlerGuard)
 @Controller('auth')
 export class AuthController {
   constructor(
@@ -91,6 +108,7 @@ export class AuthController {
   }
 
   @Post('login')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   async login(
     @Body() dto: LoginDto,
@@ -219,7 +237,7 @@ export class AuthController {
   async approveExpert(@Param('expertId') expertId: string) {
     await this.prisma.user.update({
       where: { id: expertId },
-      data: { /* expertStatus: 'APPROVED' — field not in current schema */ },
+      data: { expertStatus: 'APPROVED' },
     });
     return { message: 'Expert approved successfully.' };
   }
@@ -230,7 +248,7 @@ export class AuthController {
   async suspendExpert(@Param('expertId') expertId: string) {
     await this.prisma.user.update({
       where: { id: expertId },
-      data: { /* expertStatus: 'SUSPENDED' — field not in current schema */ },
+      data: { expertStatus: 'SUSPENDED' },
     });
     return { message: 'Expert suspended.' };
   }
@@ -280,5 +298,17 @@ export class AuthController {
     return (res as unknown as import('express').Response).redirect(`${clientUrl}/dashboard`);
   }
 
+  // ── Password Reset ─────────────────────────────────────────────────────────
 
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto.email);
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto);
+  }
 }

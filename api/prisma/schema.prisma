@@ -131,6 +131,8 @@ model User {
   sessions            Session[]
   oauthAccounts       OAuthAccount[]
   careerPlan          CareerPlan?
+  resetToken          String?   @unique
+  resetTokenExpires   DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

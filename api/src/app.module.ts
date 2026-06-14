@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { CommonModule } from './common/common.module';
@@ -24,9 +25,18 @@ import { WeightLogsModule } from './weight-logs/weight-logs.module';
 import { MoodLogsModule } from './mood-logs/mood-logs.module';
 import { KickLogsModule } from './kick-logs/kick-logs.module';
 
+import { validateConfig } from './common/config.validation';
+
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validate: validateConfig,
+    }),
+    ThrottlerModule.forRoot([{
+      ttl: 60000,
+      limit: 10,
+    }]),
     CommonModule,
     AuthModule,
     ChatbotModule,

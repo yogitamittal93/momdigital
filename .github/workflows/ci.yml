@@ -1,4 +1,4 @@
-name: Quality Gate & Integration
+name: Quality Gate & Deploy
 
 on:
   push:
@@ -10,17 +10,16 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# ─── Environment shared across all jobs ───────────────────────────────────────
 env:
-  NODE_VERSION: '20'
+  NODE_VERSION: '22'        # Must match Dockerfile.api and Dockerfile.web
+  PYTHON_VERSION: '3.11'   # Must match Dockerfile.ml_service
   API_PORT: '3001'
   WEB_PORT: '3000'
 
+# ─────────────────────────────────────────────────────────────────────────────
+# JOB 1: Build & Lint
+# ─────────────────────────────────────────────────────────────────────────────
 jobs:
-  # ─────────────────────────────────────────────────────────────────────────────
-  # JOB 1: Build & Lint
-  # Uses NPM Workspaces — a single `npm ci` at root installs web + api deps.
-  # ─────────────────────────────────────────────────────────────────────────────
   validate:
     name: Build & Lint
     runs-on: ubuntu-latest
@@ -31,22 +30,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          # cache-dependency-path covers the root lock file which represents
-          # all workspaces (web and api share the root package-lock.json)
           cache: 'npm'
           cache-dependency-path: package-lock.json
 
       - name: Install all workspace dependencies
-        # npm ci at root installs web + api via NPM Workspaces
         run: npm ci
 
       - name: Lint — API (NestJS)
         run: npm run lint -w api
-        continue-on-error: false
 
       - name: Lint — Web (Next.js)
         run: npm run lint -w web
-        continue-on-error: false
 
       - name: Build — API
         run: npm run build -w api
@@ -68,13 +62,87 @@ jobs:
             web/.next
           retention-days: 1
 
-  # ─────────────────────────────────────────────────────────────────────────────
-  # JOB 2: Playwright E2E Tests
-  # Starts the NestJS API and Next.js dev server, then runs the smoke suite.
-  # ─────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# JOB 2: API Unit Tests (Jest)
+# Runs in parallel with ML tests — does not need Playwright or a running server.
+# ─────────────────────────────────────────────────────────────────────────────
+  unit-tests:
+    name: API Unit Tests (Jest)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install all workspace dependencies
+        run: npm ci
+
+      - name: Run Jest unit tests
+        run: npm run test -w api
+        env:
+          NODE_ENV: test
+          # Jest mocks PrismaService and RedisService — no real DB/Redis needed
+          DATABASE_URL: postgresql://mock:mock@localhost:5432/mock
+          JWT_ACCESS_SECRET: ci_access_secret_unit_test
+          JWT_REFRESH_SECRET: ci_refresh_secret_unit_test
+
+      - name: Upload Jest coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jest-coverage
+          path: api/coverage/
+          retention-days: 7
+
+# ─────────────────────────────────────────────────────────────────────────────
+# JOB 3: ML Service Tests (pytest)
+# ─────────────────────────────────────────────────────────────────────────────
+  ml-tests:
+    name: ML Service Tests (pytest)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: ml_service/requirements.txt
+
+      - name: Install ML service dependencies
+        working-directory: ml_service
+        run: pip install -r requirements.txt
+
+      - name: Run pytest
+        working-directory: ml_service
+        run: python -m pytest tests/ --tb=short --junitxml=pytest-results.xml
+        env:
+          # Tests use mocked ChromaDB and Groq — no real keys needed
+          GROQ_API_KEY: ci_mock_key
+          HF_REPO_ID: mock/repo
+          HF_TOKEN: ci_mock_token
+
+      - name: Upload pytest results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-results
+          path: ml_service/pytest-results.xml
+          retention-days: 7
+
+# ─────────────────────────────────────────────────────────────────────────────
+# JOB 4: Playwright E2E Tests
+# Waits for validate + unit-tests to pass before spinning up servers.
+# ─────────────────────────────────────────────────────────────────────────────
   e2e-tests:
     name: Playwright E2E
-    needs: validate
+    needs: [validate, unit-tests]
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
@@ -89,6 +157,17 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      # Redis service — avoids relying on graceful fallback behaviour
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -108,6 +187,11 @@ jobs:
       - name: Install Playwright browsers (Chromium only for speed)
         run: npx playwright install chromium --with-deps
 
+      - name: Download build artifacts from validate job
+        uses: actions/download-artifact@v4
+        with:
+          name: build-dist
+
       - name: Run Prisma migrations (test DB)
         working-directory: api
         run: npx prisma migrate deploy
@@ -117,21 +201,25 @@ jobs:
       - name: Start API server (background)
         working-directory: api
         run: |
-          npm run start:prod &
+          node dist/main.js &
           echo "API_PID=$!" >> $GITHUB_ENV
         env:
           NODE_ENV: test
           PORT: ${{ env.API_PORT }}
           DATABASE_URL: postgresql://mom_user:mom_password@localhost:5432/mom_digital_test?sslmode=disable
-          JWT_ACCESS_SECRET: ${{ secrets.JWT_SECRET || 'ci_access_secret_do_not_use_in_prod' }}
+          JWT_ACCESS_SECRET: ${{ secrets.JWT_ACCESS_SECRET || 'ci_access_secret_do_not_use_in_prod' }}
           JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET || 'ci_refresh_secret_do_not_use_in_prod' }}
           CLIENT_URL: http://localhost:${{ env.WEB_PORT }}
           CLIENT_URLS: http://localhost:${{ env.WEB_PORT }}
-          REDIS_URL: ''   # disable Redis in CI (auth service falls back gracefully)
+          REDIS_URL: redis://localhost:6379
+          # ML_SERVICE_URL intentionally omitted — chatbot E2E tests are skipped in CI
+          # (ML service requires ChromaDB population from HF Hub, not feasible in CI)
+          ML_SERVICE_URL: ''
+          GROQ_API_KEY: ci_mock_key
 
       - name: Wait for API to be ready
         run: |
-          echo "Waiting for API on port $API_PORT..."
+          echo "Waiting for API on port ${{ env.API_PORT }}..."
           for i in $(seq 1 30); do
             if curl -sf http://localhost:${{ env.API_PORT }}/api/health > /dev/null 2>&1; then
               echo "API is up!"
@@ -141,10 +229,9 @@ jobs:
             sleep 2
           done
 
-      - name: Start Next.js server (background)
+      - name: Start Next.js server (background, reuse build artifact)
         working-directory: web
         run: |
-          npm run build
           npm run start &
           echo "WEB_PID=$!" >> $GITHUB_ENV
         env:
@@ -153,7 +240,7 @@ jobs:
 
       - name: Wait for Next.js to be ready
         run: |
-          echo "Waiting for Next.js on port $WEB_PORT..."
+          echo "Waiting for Next.js on port ${{ env.WEB_PORT }}..."
           for i in $(seq 1 30); do
             if curl -sf http://localhost:${{ env.WEB_PORT }} > /dev/null 2>&1; then
               echo "Next.js is up!"
@@ -182,6 +269,54 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results
+          name: e2e-test-results
           path: playwright-report/results.xml
           retention-days: 7
+
+# ─────────────────────────────────────────────────────────────────────────────
+# JOB 5: Deploy to Production
+# Only runs on push to master/main (not on PRs) after all tests pass.
+# Uses SSH to pull latest image and restart via docker compose.
+# ─────────────────────────────────────────────────────────────────────────────
+  deploy:
+    name: Deploy to Production
+    needs: [e2e-tests, ml-tests]
+    runs-on: ubuntu-latest
+    # Only deploy on direct push to master/main — never on PRs
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
+
+    environment:
+      name: production
+      url: ${{ vars.PRODUCTION_URL }}
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -e
+            cd ${{ secrets.DEPLOY_PATH }}
+
+            echo "Pulling latest code..."
+            git pull origin master
+
+            echo "Building and restarting services..."
+            docker compose -f docker-compose.prod.yml build --no-cache
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans
+
+            echo "Waiting for health checks..."
+            sleep 15
+
+            echo "Verifying API health..."
+            curl -sf http://localhost:3001/api/health || (echo "API health check failed" && exit 1)
+
+            echo "Verifying ML service health..."
+            curl -sf http://localhost:5000/health || (echo "ML service health check failed" && exit 1)
+
+            echo "Cleaning up old Docker images..."
+            docker image prune -f
+
+            echo "Deploy complete."

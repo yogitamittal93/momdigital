@@ -105,10 +105,14 @@ EMERGENCY_RESPONSE = {
 # Deliberately narrow: we only flag drug-like dosages and invented statistics,
 # NOT nutrition values (mg of iron, kcal, etc.) which are legitimately sourced.
 HALLUCINATION_RED_FLAGS = [
-    r"take \d+ tablet",       # drug dosage instructions
-    r"take \d+ capsule",
-    r"dose of \d+",           # specific drug dose
-    r"according to dr\s+\w",  # invented doctor attribution
+    r"take\d+tablet",       # drug dosage instructions (normalized)
+    r"take\d+capsule",
+    r"doseof\d+",           # specific drug dose
+    r"accordingtodr\w",     # invented doctor attribution
+    r"\d+%",                # percentages/statistics
+    r"\d+mg",               # drug/supplement dosages
+    r"\d+mcg",
+    r"\d+ml",
 ]
 
 # Nutrition values (mg, kcal, g) are intentionally NOT flagged —

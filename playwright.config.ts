@@ -29,22 +29,22 @@ export default defineConfig({
   webServer: process.env.CI
     ? undefined
     : [
-        {
-          command: 'npm -w api run start:dev',   // ← fixed workspace syntax
-          url: 'http://localhost:3001/api/health',
-          timeout: 60_000,
-          reuseExistingServer: true,
-          stdout: 'pipe',
-          stderr: 'pipe',
-          env: { NODE_ENV: 'test' },
-        },
-        {
-          command: 'npm -w web run dev',          // ← fixed workspace syntax
-          url: 'http://localhost:3000',
-          timeout: 60_000,
-          reuseExistingServer: true,
-          stdout: 'pipe',
-          stderr: 'pipe',
-        },
-      ],
+      {
+        command: 'npm -w api run start:dev',   // ← fixed workspace syntax
+        url: 'http://localhost:3001/api/health',
+        timeout: 60_000,
+        reuseExistingServer: true,
+        stdout: 'pipe',
+        stderr: 'pipe',
+        env: { NODE_ENV: 'test' },
+      },
+      {
+        command: 'npm -w web run dev',          // ← fixed workspace syntax
+        url: 'http://localhost:3000',
+        timeout: 60_000,
+        reuseExistingServer: true,
+        stdout: 'pipe',
+        stderr: 'pipe',
+      },
+    ],
 });

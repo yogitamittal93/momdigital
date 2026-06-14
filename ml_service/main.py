@@ -126,13 +126,25 @@ def query():
 def health():
     try:
         collection = get_collection()
-        return jsonify({
-            "status": "ok",
-            "chunks_indexed": collection.count(),
-            "version": "1.0.0",
-        })
+        count = collection.count()
+        chroma_ok = count > 0
     except Exception as e:
-        return jsonify({"status": "degraded", "error": str(e)}), 503
+        logger.error("Health check database query failed: %s", e)
+        chroma_ok = False
+        count = 0
+
+    if not chroma_ok:
+        return jsonify({
+            "status": "degraded",
+            "error": "ChromaDB collection is empty or unreachable.",
+            "chunks_indexed": count
+        }), 503
+
+    return jsonify({
+        "status": "ok",
+        "chunks_indexed": count,
+        "version": "1.0.0"
+    }), 200
 
 
 @app.route("/approved-answer", methods=["POST"])
