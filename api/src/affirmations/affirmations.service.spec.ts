@@ -11,7 +11,7 @@ describe('AffirmationsService', () => {
   beforeEach(() => {
     mockConfigService = {
       getOrThrow: jest.fn().mockReturnValue('mock-api-key'),
-    } as any;
+    } as unknown as jest.Mocked<ConfigService>;
 
     mockHttpService = {
       post: jest.fn().mockReturnValue(
@@ -27,7 +27,7 @@ describe('AffirmationsService', () => {
           },
         }),
       ),
-    } as any;
+    } as unknown as jest.Mocked<HttpService>;
 
     service = new AffirmationsService(mockConfigService, mockHttpService);
   });
@@ -49,6 +49,7 @@ describe('AffirmationsService', () => {
       const result = await service.generatePersonalised(user, opts);
       expect(result.message).toContain('Yogita');
       expect(result.generated).toBe(true);
+      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(mockHttpService.post).toHaveBeenCalled();
     });
   });

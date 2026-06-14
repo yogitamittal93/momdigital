@@ -15,9 +15,7 @@ import { ToggleMilestoneDto } from './dto/milestone.dto';
 @Controller('pregnancy-milestones')
 @UseGuards(JwtGuard)
 export class PregnancyMilestonesController {
-  constructor(
-    private readonly milestonesService: PregnancyMilestonesService,
-  ) {}
+  constructor(private readonly milestonesService: PregnancyMilestonesService) {}
 
   @Get()
   findAll(@Req() req: { user: { userId: string } }) {

@@ -11,7 +11,8 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { JwtGuard } from 'src/auth/jwt.gaurd';
+import type { Request } from 'express';
+import { JwtGuard, JwtPayload } from 'src/auth/jwt.gaurd';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { UserRole } from '@prisma/client';
@@ -34,7 +35,10 @@ export class TrainerContentController {
   @Post()
   @UseGuards(JwtGuard, RolesGuard)
   @Roles(...TRAINER_ROLES)
-  create(@Req() req: any, @Body() dto: CreateTrainerContentDto) {
+  create(
+    @Req() req: Request & { user: JwtPayload },
+    @Body() dto: CreateTrainerContentDto,
+  ) {
     return this.service.create(req.user.userId, dto);
   }
 
@@ -42,7 +46,7 @@ export class TrainerContentController {
   @Get('my')
   @UseGuards(JwtGuard, RolesGuard)
   @Roles(...TRAINER_ROLES)
-  listMine(@Req() req: any) {
+  listMine(@Req() req: Request & { user: JwtPayload }) {
     return this.service.listMine(req.user.userId);
   }
 
@@ -51,7 +55,10 @@ export class TrainerContentController {
   @UseGuards(JwtGuard, RolesGuard)
   @Roles(...TRAINER_ROLES)
   @HttpCode(HttpStatus.OK)
-  publish(@Req() req: any, @Param('postId') postId: string) {
+  publish(
+    @Req() req: Request & { user: JwtPayload },
+    @Param('postId') postId: string,
+  ) {
     return this.service.publish(req.user.userId, postId);
   }
 }

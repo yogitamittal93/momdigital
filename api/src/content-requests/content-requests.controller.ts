@@ -11,8 +11,8 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
-import type { Response } from 'express';
-import { JwtGuard } from 'src/auth/jwt.gaurd';
+import type { Request, Response } from 'express';
+import { JwtGuard, JwtPayload } from 'src/auth/jwt.gaurd';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { UserRole } from '@prisma/client';
@@ -41,12 +41,15 @@ export class ContentRequestsController {
   // ─── Mother endpoints ──────────────────────────────────────────────────────
 
   @Post()
-  submit(@Req() req: any, @Body() dto: SubmitContentRequestDto) {
+  submit(
+    @Req() req: Request & { user: JwtPayload },
+    @Body() dto: SubmitContentRequestDto,
+  ) {
     return this.service.submit(req.user.userId, dto);
   }
 
   @Get()
-  list(@Req() req: any) {
+  list(@Req() req: Request & { user: JwtPayload }) {
     return this.service.listForMother(req.user.userId);
   }
 
@@ -55,14 +58,14 @@ export class ContentRequestsController {
   @Get('queue')
   @UseGuards(RolesGuard)
   @Roles(...ALL_EXPERT_ROLES)
-  getQueue(@Req() req: any) {
-    return this.service.getQueue(req.user.userId, req.user.role);
+  getQueue(@Req() req: Request & { user: JwtPayload }) {
+    return this.service.getQueue(req.user.userId);
   }
 
   @Get('stats')
   @UseGuards(RolesGuard)
   @Roles(...ALL_EXPERT_ROLES)
-  getStats(@Req() req: any) {
+  getStats(@Req() req: Request & { user: JwtPayload }) {
     return this.service.getStats(req.user.userId);
   }
 
@@ -70,7 +73,7 @@ export class ContentRequestsController {
   @UseGuards(RolesGuard)
   @Roles(...CLINICIAN_ROLES)
   async getScanFile(
-    @Req() req: any,
+    @Req() req: Request & { user: JwtPayload },
     @Param('assignmentId') assignmentId: string,
     @Res() res: Response,
   ) {
@@ -87,7 +90,10 @@ export class ContentRequestsController {
   @UseGuards(RolesGuard)
   @Roles(...CLINICIAN_ROLES)
   @HttpCode(HttpStatus.OK)
-  revealPii(@Req() req: any, @Param('assignmentId') assignmentId: string) {
+  revealPii(
+    @Req() req: Request & { user: JwtPayload },
+    @Param('assignmentId') assignmentId: string,
+  ) {
     return this.service.revealPii(req.user.userId, assignmentId);
   }
 
@@ -96,7 +102,7 @@ export class ContentRequestsController {
   @Roles(...ALL_EXPERT_ROLES)
   @HttpCode(HttpStatus.OK)
   approve(
-    @Req() req: any,
+    @Req() req: Request & { user: JwtPayload },
     @Param('assignmentId') assignmentId: string,
     @Body() dto: ReviewActionDto,
   ) {
@@ -108,7 +114,7 @@ export class ContentRequestsController {
   @Roles(...ALL_EXPERT_ROLES)
   @HttpCode(HttpStatus.OK)
   flag(
-    @Req() req: any,
+    @Req() req: Request & { user: JwtPayload },
     @Param('assignmentId') assignmentId: string,
     @Body() dto: ReviewActionDto,
   ) {
@@ -120,7 +126,7 @@ export class ContentRequestsController {
   @Roles(...ALL_EXPERT_ROLES)
   @HttpCode(HttpStatus.OK)
   addNote(
-    @Req() req: any,
+    @Req() req: Request & { user: JwtPayload },
     @Param('assignmentId') assignmentId: string,
     @Body() dto: ReviewActionDto,
   ) {

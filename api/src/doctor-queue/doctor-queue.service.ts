@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from 'prisma/prisma.service';
 import { DoctorSpecialty, ApprovedAnswer } from '@prisma/client';
 import * as crypto from 'crypto';
@@ -196,8 +200,12 @@ export class DoctorQueueService {
       throw new NotFoundException('Doctor profile not found');
     }
 
-    const approved = profile.reviews.filter((r) => r.status === 'APPROVED').length;
-    const flagged = profile.reviews.filter((r) => r.status === 'FLAGGED').length;
+    const approved = profile.reviews.filter(
+      (r) => r.status === 'APPROVED',
+    ).length;
+    const flagged = profile.reviews.filter(
+      (r) => r.status === 'FLAGGED',
+    ).length;
 
     return {
       reviewsCompleted: profile.reviewsCompleted,

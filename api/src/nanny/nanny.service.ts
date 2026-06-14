@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class NannyService {
@@ -58,7 +59,12 @@ export class NannyService {
 
     return this.prisma.trustedHelperCheck.update({
       where: { id: checklistId },
-      data: { checks: { ...checks, items } as unknown as import('@prisma/client').Prisma.InputJsonValue },
+      data: {
+        checks: {
+          ...checks,
+          items,
+        } as unknown as import('@prisma/client').Prisma.InputJsonValue,
+      },
     });
   }
 
@@ -93,17 +99,21 @@ export class NannyService {
       return this.prisma.trustedHelperCheck.update({
         where: { id: existing.id },
         data: {
-          checks: checksData as any,
+          checks: checksData as Prisma.InputJsonValue,
           score,
         },
       });
     }
 
     return this.prisma.trustedHelperCheck.create({
-      data: { userId, helperType, checks: checksData as any, score },
+      data: {
+        userId,
+        helperType,
+        checks: checksData as Prisma.InputJsonValue,
+        score,
+      },
     });
   }
-
 
   async getChecks(userId: string, helperType?: string, limit = 10) {
     return this.prisma.trustedHelperCheck.findMany({

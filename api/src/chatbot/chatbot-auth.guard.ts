@@ -8,6 +8,8 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { JwtPayload } from 'src/auth/jwt.gaurd';
 
+import type { Request } from 'express';
+
 @Injectable()
 export class ChatbotAuthGuard implements CanActivate {
   constructor(
@@ -16,19 +18,20 @@ export class ChatbotAuthGuard implements CanActivate {
   ) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const request = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest<Request>();
     const testUserId = request.headers['x-test-user-id'] as string | undefined;
 
     if (
       testUserId &&
       this.configService.get<string>('NODE_ENV') !== 'production'
     ) {
-      request.user = { userId: testUserId };
+      request.user = { userId: testUserId } as Express.User;
       return true;
     }
 
-    const cookieToken = request.cookies?.access_token as string | undefined;
-    const authHeader = request.headers.authorization as string | undefined;
+    const cookies = request.cookies as Record<string, string> | undefined;
+    const cookieToken = cookies?.access_token;
+    const authHeader = request.headers['authorization'];
     const bearerToken = authHeader?.startsWith('Bearer ')
       ? authHeader.slice(7)
       : undefined;

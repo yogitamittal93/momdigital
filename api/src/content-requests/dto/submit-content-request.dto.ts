@@ -1,10 +1,4 @@
-import {
-  IsEnum,
-  IsJSON,
-  IsOptional,
-  IsString,
-  IsUUID,
-} from 'class-validator';
+import { IsEnum, IsJSON, IsOptional, IsString, IsUUID } from 'class-validator';
 import { ContentRequestType } from '@prisma/client';
 
 export class SubmitContentRequestDto {

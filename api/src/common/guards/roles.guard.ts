@@ -3,15 +3,20 @@ import { Reflector } from '@nestjs/core';
 import { UserRole, ExpertStatus } from '@prisma/client';
 import { JwtPayload } from 'src/auth/jwt.gaurd';
 
+import type { Request } from 'express';
+
 @Injectable()
 export class RolesGuard implements CanActivate {
   constructor(private reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const requiredRoles = this.reflector.get<UserRole[]>('roles', context.getHandler());
+    const requiredRoles = this.reflector.get<UserRole[]>(
+      'roles',
+      context.getHandler(),
+    );
     if (!requiredRoles?.length) return true;
 
-    const request = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest<Request>();
     const user = request.user as JwtPayload;
     if (!user) return false;
 

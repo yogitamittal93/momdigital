@@ -63,7 +63,9 @@ export class WellnessLogsService {
 
   private parseMonthRange(month?: string): { start: Date; end: Date } {
     const ref = month ? new Date(`${month}-01T00:00:00Z`) : new Date();
-    const start = new Date(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth(), 1));
+    const start = new Date(
+      Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth(), 1),
+    );
     const end = new Date(
       Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth() + 1, 1),
     );

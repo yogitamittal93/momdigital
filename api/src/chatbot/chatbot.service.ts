@@ -53,7 +53,7 @@ export class ChatbotService {
           this.httpService.post(
             `${this.mlBaseUrl}/extract`,
             { text: message },
-            { timeout: 8000 },  // ← increased from 5000: cold-start ML can take 5-7s
+            { timeout: 8000 }, // ← increased from 5000: cold-start ML can take 5-7s
           ),
         );
         extracted = mlResponse.data as Record<string, unknown>;
@@ -78,7 +78,7 @@ export class ChatbotService {
         return {
           reply: validation.errorMessage,
           needsConfirmation: true,
-          confidence: 'auto_safe',   // NOT requires_doctor — this is a clarification, not an emergency
+          confidence: 'auto_safe', // NOT requires_doctor — this is a clarification, not an emergency
           sources: [],
         };
       }
@@ -110,7 +110,9 @@ export class ChatbotService {
           },
         });
       } catch (err) {
-        this.logger.warn(`Prisma error fetching user: ${(err as Error).message}`);
+        this.logger.warn(
+          `Prisma error fetching user: ${(err as Error).message}`,
+        );
       }
 
       if (!user) throw new NotFoundException('User not found');
@@ -128,7 +130,12 @@ export class ChatbotService {
         vitals.hasHeight;
 
       if (onboardingComplete) {
-        const ragResult = await this.getRAGResponse(message, extracted, user, userId);
+        const ragResult = await this.getRAGResponse(
+          message,
+          extracted,
+          user,
+          userId,
+        );
         if (ragResult) {
           if (
             ragResult.queueForDoctor ||
@@ -195,14 +202,18 @@ export class ChatbotService {
         confidence: ragResult.confidence,
       });
     } catch (err) {
-      this.logger.warn(
-        `Doctor queue failed: ${(err as Error).message}`,
-      );
+      this.logger.warn(`Doctor queue failed: ${(err as Error).message}`);
     }
   }
 
   private generateSmartReply(
-    user: { name: string; dueDate: Date | null; babyBirthDate: Date | null; weight?: number | null; height?: number | null },
+    user: {
+      name: string;
+      dueDate: Date | null;
+      babyBirthDate: Date | null;
+      weight?: number | null;
+      height?: number | null;
+    },
     extracted: Record<string, unknown>,
     originalMessage: string,
   ): string {
@@ -372,11 +383,8 @@ export class ChatbotService {
           `Profile auto-synced for user ${userId}: ${JSON.stringify(Object.keys(patch))}`,
         );
       }
-
     } catch (err) {
-      this.logger.error(
-        `saveDataToPrisma error: ${(err as Error).message}`,
-      );
+      this.logger.error(`saveDataToPrisma error: ${(err as Error).message}`);
       // Non-fatal — don't rethrow; chatbot reply still returns
     }
   }
@@ -410,16 +418,12 @@ export class ChatbotService {
         user.name.toLowerCase().includes('guest') ||
         user.name.toLowerCase().includes('user'))
     ) {
-      patch.name = (data.name as string).trim();
+      patch.name = data.name.trim();
     }
 
     // ── babyName ─────────────────────────────────────────────────────────────
-    if (
-      data.babyName &&
-      typeof data.babyName === 'string' &&
-      !user.babyName
-    ) {
-      patch.babyName = (data.babyName as string).trim();
+    if (data.babyName && typeof data.babyName === 'string' && !user.babyName) {
+      patch.babyName = data.babyName.trim();
     }
 
     // ── weight ───────────────────────────────────────────────────────────────
@@ -469,8 +473,7 @@ export class ChatbotService {
     // Only sync if babyBirthDate is not being set and baby is not already born.
     if (!patch.babyBirthDate && !user.babyBirthDate) {
       const rawDueDate =
-        (data.dueDate as string | null) ??
-        (data.due_date as string | null);
+        (data.dueDate as string | null) ?? (data.due_date as string | null);
 
       if (rawDueDate) {
         const parsed = this.parseSafeDate(rawDueDate);
@@ -484,8 +487,12 @@ export class ChatbotService {
           }
         }
       } else if (data.pregnancyWeek && !user.dueDate) {
-        // Derive due date from pregnancy week as a fallback
-        const week = parseInt(String(data.pregnancyWeek), 10);
+        const weekStr =
+          typeof data.pregnancyWeek === 'string' ||
+          typeof data.pregnancyWeek === 'number'
+            ? String(data.pregnancyWeek)
+            : '';
+        const week = parseInt(weekStr, 10);
         if (!isNaN(week) && week >= 4 && week <= 42) {
           const weeksRemaining = 40 - week;
           const dueDate = new Date();
@@ -515,7 +522,12 @@ export class ChatbotService {
 
   private parseSafeDate(value: unknown): Date | null {
     if (!value) return null;
-    const str = String(value).trim();
+    const str =
+      typeof value === 'string' ||
+      typeof value === 'number' ||
+      typeof value === 'boolean'
+        ? String(value).trim()
+        : '';
     if (!str || str === 'null' || str === 'undefined') return null;
 
     const d = new Date(str);
@@ -594,13 +606,33 @@ export class ChatbotService {
     user: { dueDate: Date | null },
     userId: string,
   ): Promise<RagResult | null> {
-
     const healthKeywords = [
-      'eat', 'food', 'diet', 'recipe', 'pain', 'feel', 'symptom',
-      'medicine', 'exercise', 'massage', 'baby', 'breastfeed',
-      'sleep', 'nausea', 'vomit', 'tired', 'iron', 'calcium',
-      'ayurved', 'herb', 'when should', 'how should', 'what should',
-      'is it safe', 'can i', 'should i',
+      'eat',
+      'food',
+      'diet',
+      'recipe',
+      'pain',
+      'feel',
+      'symptom',
+      'medicine',
+      'exercise',
+      'massage',
+      'baby',
+      'breastfeed',
+      'sleep',
+      'nausea',
+      'vomit',
+      'tired',
+      'iron',
+      'calcium',
+      'ayurved',
+      'herb',
+      'when should',
+      'how should',
+      'what should',
+      'is it safe',
+      'can i',
+      'should i',
     ];
 
     const isHealthQuestion = healthKeywords.some((kw) =>
@@ -608,8 +640,13 @@ export class ChatbotService {
     );
 
     const emergencyKeywords = [
-      'not breathing', 'not moving', 'unconscious', 'emergency',
-      'heavy bleeding', 'baby not moving', "can\'t breathe",
+      'not breathing',
+      'not moving',
+      'unconscious',
+      'emergency',
+      'heavy bleeding',
+      'baby not moving',
+      "can't breathe",
     ];
     const isEmergency = emergencyKeywords.some((kw) =>
       message.toLowerCase().includes(kw),
@@ -653,7 +690,7 @@ export class ChatbotService {
               weight: extracted.weight_value,
               height: extracted.height_value,
             },
-            conversationHistory,   // ← NEW: passed from DB, not Python memory
+            conversationHistory, // ← NEW: passed from DB, not Python memory
           },
           { timeout: 30000 },
         ),

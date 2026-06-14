@@ -2,7 +2,6 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'prisma/prisma.service';
 import { AppConfigService } from 'src/common/app-config.service';
 import { CreateTrainerContentDto } from './dto/create-trainer-content.dto';
-import { UserRole } from '@prisma/client';
 
 @Injectable()
 export class TrainerContentService {

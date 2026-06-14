@@ -1,39 +1,109 @@
 export const NANNY_CHECKLIST_PROTOCOL = {
   daily_first_15_days: [
-    { id: 'handwash_before_baby', label: 'Washed hands before touching baby', critical: true },
-    { id: 'handwash_after_nappy', label: 'Washed hands after nappy change', critical: true },
-    { id: 'langot_correct', label: 'Langot/nappy tied correctly (not too tight)', critical: true },
+    {
+      id: 'handwash_before_baby',
+      label: 'Washed hands before touching baby',
+      critical: true,
+    },
+    {
+      id: 'handwash_after_nappy',
+      label: 'Washed hands after nappy change',
+      critical: true,
+    },
+    {
+      id: 'langot_correct',
+      label: 'Langot/nappy tied correctly (not too tight)',
+      critical: true,
+    },
     {
       id: 'navel_cleaned',
       label: 'Navel cord cleaned with spirit swab',
       critical: true,
       days_applicable: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
     },
-    { id: 'baby_position_varied', label: 'Baby position changed every 2 hours', critical: false },
-    { id: 'milk_feeds_logged', label: 'Milk feeds logged (time + duration)', critical: true },
-    { id: 'wet_nappies_counted', label: 'Wet nappies counted (minimum 6/day)', critical: true },
-    { id: 'baby_bath_clean', label: 'Baby bathed/sponged with clean water', critical: false },
-    { id: 'mother_rest_supported', label: 'Mother given rest time', critical: false },
+    {
+      id: 'baby_position_varied',
+      label: 'Baby position changed every 2 hours',
+      critical: false,
+    },
+    {
+      id: 'milk_feeds_logged',
+      label: 'Milk feeds logged (time + duration)',
+      critical: true,
+    },
+    {
+      id: 'wet_nappies_counted',
+      label: 'Wet nappies counted (minimum 6/day)',
+      critical: true,
+    },
+    {
+      id: 'baby_bath_clean',
+      label: 'Baby bathed/sponged with clean water',
+      critical: false,
+    },
+    {
+      id: 'mother_rest_supported',
+      label: 'Mother given rest time',
+      critical: false,
+    },
   ],
   daily_day_16_to_30: [
-    { id: 'handwash_before_baby', label: 'Washed hands before touching baby', critical: true },
-    { id: 'langot_correct', label: 'Nappy/diaper fitted correctly', critical: true },
+    {
+      id: 'handwash_before_baby',
+      label: 'Washed hands before touching baby',
+      critical: true,
+    },
+    {
+      id: 'langot_correct',
+      label: 'Nappy/diaper fitted correctly',
+      critical: true,
+    },
     { id: 'milk_feeds_logged', label: 'Feeds logged', critical: true },
-    { id: 'baby_tummy_time', label: 'Tummy time given (5 min minimum)', critical: false },
+    {
+      id: 'baby_tummy_time',
+      label: 'Tummy time given (5 min minimum)',
+      critical: false,
+    },
     { id: 'baby_bath_clean', label: 'Baby bathed', critical: false },
   ],
   weekly_after_day_30: [
     { id: 'weight_check', label: 'Baby weight checked', critical: false },
-    { id: 'developmental_milestone', label: 'Milestone observation logged', critical: false },
-    { id: 'vaccination_due', label: 'Upcoming vaccination checked', critical: true },
+    {
+      id: 'developmental_milestone',
+      label: 'Milestone observation logged',
+      critical: false,
+    },
+    {
+      id: 'vaccination_due',
+      label: 'Upcoming vaccination checked',
+      critical: true,
+    },
   ],
 };
 
 export const TRUST_MILESTONES = [
-  { day: 5, label: 'First week review', message: 'Review first 5 days. Is the nanny following all critical checks?' },
-  { day: 15, label: 'Two week review', message: 'Navel should be healed. Reduce daily checks on cord care.' },
-  { day: 30, label: 'One month review', message: 'After consistent checks, you can start weekly monitoring for non-critical items.' },
-  { day: 60, label: 'Two month review', message: 'Trust established for daily care. Focus weekly checks on development and feeding.' },
+  {
+    day: 5,
+    label: 'First week review',
+    message: 'Review first 5 days. Is the nanny following all critical checks?',
+  },
+  {
+    day: 15,
+    label: 'Two week review',
+    message: 'Navel should be healed. Reduce daily checks on cord care.',
+  },
+  {
+    day: 30,
+    label: 'One month review',
+    message:
+      'After consistent checks, you can start weekly monitoring for non-critical items.',
+  },
+  {
+    day: 60,
+    label: 'Two month review',
+    message:
+      'Trust established for daily care. Focus weekly checks on development and feeding.',
+  },
 ];
 
 export type ChecklistItem = {

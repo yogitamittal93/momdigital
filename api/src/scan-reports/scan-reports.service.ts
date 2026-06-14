@@ -106,12 +106,14 @@ export class ScanReportsService {
     });
 
     // Auto-route scan for expert review
-    await this.contentRequests.submit(userId, {
-      requestType: ContentRequestType.MEDICAL_SCAN,
-      scanReportId: report.id,
-    }).catch(() => {
-      // Non-blocking: don't fail the upload if routing fails
-    });
+    await this.contentRequests
+      .submit(userId, {
+        requestType: ContentRequestType.MEDICAL_SCAN,
+        scanReportId: report.id,
+      })
+      .catch(() => {
+        // Non-blocking: don't fail the upload if routing fails
+      });
 
     return report;
   }
@@ -167,7 +169,9 @@ export class ScanReportsService {
     if (report.userId !== userId) throw new UnauthorizedException();
 
     await this.prisma.scanReport.delete({ where: { id: reportId } });
-    await unlink(join(this.getUploadDir(), report.storedName)).catch(() => null);
+    await unlink(join(this.getUploadDir(), report.storedName)).catch(
+      () => null,
+    );
   }
 
   private async assertOwner(userId: string, reportId: string) {
@@ -188,7 +192,9 @@ export class ScanReportsService {
         token: randomUUID(),
         targetEmail: dto.targetEmail.toLowerCase(),
         permission: dto.permission ?? 'view',
-        expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        expiresAt: dto.expiresAt
+          ? new Date(dto.expiresAt)
+          : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       },
       select: {
         id: true,

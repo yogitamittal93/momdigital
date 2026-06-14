@@ -33,10 +33,12 @@ import { validateConfig } from './common/config.validation';
       isGlobal: true,
       validate: validateConfig,
     }),
-    ThrottlerModule.forRoot([{
-      ttl: 60000,
-      limit: 10,
-    }]),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000,
+        limit: 10,
+      },
+    ]),
     CommonModule,
     AuthModule,
     ChatbotModule,

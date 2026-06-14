@@ -87,7 +87,9 @@ export class ExerciseLogsService {
   private parseMonthRange(month?: string): { start: Date; end: Date } {
     // month format: "YYYY-MM", e.g. "2025-06"
     const ref = month ? new Date(`${month}-01T00:00:00Z`) : new Date();
-    const start = new Date(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth(), 1));
+    const start = new Date(
+      Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth(), 1),
+    );
     const end = new Date(
       Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth() + 1, 1),
     );

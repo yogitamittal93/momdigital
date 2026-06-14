@@ -136,7 +136,8 @@ export class AuthService {
       },
     });
 
-    const { password, ...safeUser } = user;
+    const safeUser = { ...user };
+    delete (safeUser as { password?: string | null }).password;
 
     return {
       message: 'Mom registered successfully',
@@ -184,7 +185,8 @@ export class AuthService {
       },
     });
 
-    const { password, ...safeUser } = user;
+    const safeUser = { ...user };
+    delete (safeUser as { password?: string | null }).password;
 
     return {
       user: safeUser,
@@ -297,10 +299,7 @@ export class AuthService {
 
   // ─── Expert Registration ───────────────────────────────────────────────────
 
-  async registerExpert(
-    dto: RegisterExpertDto,
-    credentialUrl?: string,
-  ) {
+  async registerExpert(dto: RegisterExpertDto, credentialUrl?: string) {
     const existing = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
@@ -328,7 +327,8 @@ export class AuthService {
       },
     });
 
-    const { password, ...safeUser } = user;
+    const safeUser = { ...user };
+    delete (safeUser as { password?: string | null }).password;
 
     return {
       message:
@@ -341,12 +341,18 @@ export class AuthService {
     const user = await this.prisma.user.update({
       where: { id: userId },
       data: {
-        ...(dto.name          !== undefined && { name: dto.name }),
-        ...(dto.babyName      !== undefined && { babyName: dto.babyName }),
-        ...(dto.deliveryType  !== undefined && { deliveryType: dto.deliveryType }),
-        ...(dto.whatsappNumber !== undefined && { whatsappNumber: dto.whatsappNumber }),
+        ...(dto.name !== undefined && { name: dto.name }),
+        ...(dto.babyName !== undefined && { babyName: dto.babyName }),
+        ...(dto.deliveryType !== undefined && {
+          deliveryType: dto.deliveryType,
+        }),
+        ...(dto.whatsappNumber !== undefined && {
+          whatsappNumber: dto.whatsappNumber,
+        }),
         ...(dto.dueDate && { dueDate: new Date(dto.dueDate) }),
-        ...(dto.babyBirthDate && { babyBirthDate: new Date(dto.babyBirthDate) }),
+        ...(dto.babyBirthDate && {
+          babyBirthDate: new Date(dto.babyBirthDate),
+        }),
         ...((dto.avatarUrl ?? dto.profileImage) !== undefined && {
           profileImage: dto.avatarUrl ?? dto.profileImage,
         }),
@@ -392,7 +398,9 @@ export class AuthService {
     const updateData: Record<string, unknown> = {
       profession: dto.profession,
       employer: dto.employer,
-      breakStartDate: dto.breakStartDate ? new Date(dto.breakStartDate) : undefined,
+      breakStartDate: dto.breakStartDate
+        ? new Date(dto.breakStartDate)
+        : undefined,
       returnDate: dto.returnDate ? new Date(dto.returnDate) : undefined,
       planItems: dto.planItems as Prisma.InputJsonValue,
     };
@@ -408,8 +416,8 @@ export class AuthService {
 
     const careerPlan = await this.prisma.careerPlan.upsert({
       where: { userId },
-      create: createData as any,
-      update: updateData as any,
+      create: createData as unknown as Prisma.CareerPlanCreateInput,
+      update: updateData as unknown as Prisma.CareerPlanUpdateInput,
     });
 
     await this.redisService.del(this.profileCacheKey(userId));
@@ -429,15 +437,23 @@ export class AuthService {
    * Returns a minimal user object (id + email) used to mint JWT tokens.
    */
   async findOrCreateOAuthUser(params: {
-    provider:     string;
-    providerId:   string;
-    email:        string;
-    name:         string;
+    provider: string;
+    providerId: string;
+    email: string;
+    name: string;
     profileImage: string | null;
-    accessToken:  string;
+    accessToken: string;
     refreshToken: string | null;
   }) {
-    const { provider, providerId, email, name, profileImage, accessToken, refreshToken } = params;
+    const {
+      provider,
+      providerId,
+      email,
+      name,
+      profileImage,
+      accessToken,
+      refreshToken,
+    } = params;
 
     // 1. Check for existing linked account
     const existing = await this.prisma.oAuthAccount.findUnique({
@@ -466,7 +482,7 @@ export class AuthService {
           email,
           name,
           profileImage,
-          password: null,          // no password for OAuth users
+          password: null, // no password for OAuth users
           onboardingDone: false,
         },
       });
@@ -475,7 +491,7 @@ export class AuthService {
     // 4. Link the OAuth account to the user
     await this.prisma.oAuthAccount.create({
       data: {
-        userId:       user.id,
+        userId: user.id,
         provider,
         providerId,
         email,
@@ -518,7 +534,10 @@ export class AuthService {
     });
 
     if (!user) {
-      return { message: 'If the email exists, a password reset link has been generated.' };
+      return {
+        message:
+          'If the email exists, a password reset link has been generated.',
+      };
     }
 
     const token = randomBytes(32).toString('hex');
@@ -533,7 +552,10 @@ export class AuthService {
       },
     });
 
-    Logger.warn(`Password reset requested for ${user.email}. Token is: ${token}`, 'AuthService');
+    Logger.warn(
+      `Password reset requested for ${user.email}. Token is: ${token}`,
+      'AuthService',
+    );
 
     return {
       message: 'If the email exists, a password reset link has been generated.',
@@ -552,7 +574,11 @@ export class AuthService {
       where: { resetToken: hashedToken },
     });
 
-    if (!user || !user.resetTokenExpires || user.resetTokenExpires.getTime() < Date.now()) {
+    if (
+      !user ||
+      !user.resetTokenExpires ||
+      user.resetTokenExpires.getTime() < Date.now()
+    ) {
       throw new BadRequestException('Invalid or expired reset token');
     }
 
