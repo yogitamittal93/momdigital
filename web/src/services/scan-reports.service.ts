@@ -8,7 +8,7 @@ import {
 export async function listScanReports(): Promise<ScanReport[]> {
   const data = await api.get("/scan-reports");
   // Ensure we always return an array regardless of response shape
-  return Array.isArray(data) ? data : (data as any)?.data ?? [];
+  return Array.isArray(data) ? data : (data as { data?: ScanReport[] })?.data ?? [];
 }
 
 export async function uploadScanReport(
@@ -72,7 +72,7 @@ export async function downloadScanReport(
 
 export async function listReportShares(reportId: string): Promise<ScanReportShare[]> {
   const data = await api.get(`/scan-reports/${reportId}/shares`);
-  return Array.isArray(data) ? data : (data as any)?.data ?? [];
+  return Array.isArray(data) ? data : (data as { data?: ScanReportShare[] })?.data ?? [];
 }
 
 export async function createReportShare(

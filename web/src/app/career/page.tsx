@@ -200,14 +200,25 @@ function CareerDashboard({
   const [insightLoading, setInsightLoading] = useState(true);
 
   useEffect(() => {
+    let active = true;
     if (!plan.profession) {
-      setInsightLoading(false);
-      return;
+      const timer = setTimeout(() => {
+        if (active) setInsightLoading(false);
+      }, 0);
+      return () => {
+        active = false;
+        clearTimeout(timer);
+      };
     }
     fetchCareerInsight(plan.profession).then((res) => {
-      setInsight(res);
-      setInsightLoading(false);
+      if (active) {
+        setInsight(res);
+        setInsightLoading(false);
+      }
     });
+    return () => {
+      active = false;
+    };
   }, [plan.profession]);
 
   const milestones = useMemo(() => {

@@ -41,13 +41,13 @@ const CONFIDENCE_BANNERS = {
   },
 };
 
-interface ChatWindowProps {
+export interface ChatWindowProps {
   userId?: string;
   /** Pass the current user profile for richer context in future features */
   userProfile?: ApiUser;
 }
 
-export function ChatWindow({ userId: _userId, userProfile: _userProfile }: ChatWindowProps) {
+export function ChatWindow() {
   const { status: mlStatus, chunksIndexed } = useMlStatus();
 
   const [messages, setMessages] = useState<Message[]>([

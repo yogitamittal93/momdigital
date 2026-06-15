@@ -63,11 +63,11 @@ function BabyProfileForm({ onSave }: { onSave: () => void }) {
     <Card className="rounded-3xl border-none shadow-lg p-6 mb-6 bg-primary/5">
       <h3 className="mb-1">Tell us about your baby</h3>
       <p className="text-sm text-muted-foreground mb-4">
-        Add your baby's details to unlock personalized feeding logs, milestones, and care guidance.
+        Add your baby&apos;s details to unlock personalized feeding logs, milestones, and care guidance.
       </p>
       <div className="space-y-3">
         <div>
-          <label className="text-xs text-muted-foreground mb-1 block">Baby's name (optional)</label>
+          <label className="text-xs text-muted-foreground mb-1 block">Baby&apos;s name (optional)</label>
           <Input
             placeholder="e.g. Aryan"
             value={babyName}
@@ -76,7 +76,7 @@ function BabyProfileForm({ onSave }: { onSave: () => void }) {
           />
         </div>
         <div>
-          <label className="text-xs text-muted-foreground mb-1 block">Baby's birth date *</label>
+          <label className="text-xs text-muted-foreground mb-1 block">Baby&apos;s birth date *</label>
           <Input
             type="date"
             value={babyBirthDate}
@@ -127,11 +127,12 @@ export default function ChildCarePage() {
   useEffect(() => {
     if (!hasBabyInfo) return;
     api.get("/feeding-logs?date=today")
-      .then((data: any) => {
-        if (data && Array.isArray(data.logs)) {
-          setFeedings(data.logs);
-          if (data.lastUsedType) {
-            setFeedType(data.lastUsedType);
+      .then((data) => {
+        const d = data as { logs?: FeedEntry[]; lastUsedType?: typeof feedType };
+        if (d && Array.isArray(d.logs)) {
+          setFeedings(d.logs);
+          if (d.lastUsedType) {
+            setFeedType(d.lastUsedType);
           }
         }
       })
@@ -262,7 +263,7 @@ export default function ChildCarePage() {
 
                 <TabsContent value="feedings">
                   <Card className="rounded-3xl border-none shadow-lg p-6">
-                    <h3 className="mb-4">Today's feeding log</h3>
+                    <h3 className="mb-4">Today&apos;s feeding log</h3>
                     {feedings.length === 0 ? (
                       <p className="text-sm text-muted-foreground">No feedings logged yet today. Use the button above to start.</p>
                     ) : (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CloudUpload,
   Download,
@@ -68,7 +68,7 @@ export default function MedicalRecordsPage() {
     }, 3000);
   };
 
-  const loadReports = async () => {
+  const loadReports = useCallback(async () => {
     try {
       setIsLoading(true);
       const data = await listScanReports();
@@ -79,11 +79,11 @@ export default function MedicalRecordsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     void loadReports();
-  }, []);
+  }, [loadReports]);
 
   const onFilePicked = (file: File | null) => {
     setError(null);
@@ -363,6 +363,7 @@ export default function MedicalRecordsPage() {
                     <div className="flex items-center justify-between gap-4">
                       <div className="flex items-center gap-3 min-w-0">
                         {report.mimeType.startsWith("image/") ? (
+                          // eslint-disable-next-line @next/next/no-img-element
                           <img
                             src={`${apiBase}/scan-reports/${report.id}/file`}
                             alt={report.originalName}

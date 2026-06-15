@@ -1,5 +1,4 @@
 "use client";
-import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { loginUser, signupUser } from "@/services/auth.service";
@@ -87,13 +86,23 @@ function OAuthButtons() {
 
 // ── Main form ─────────────────────────────────────────────────────────────────
 
+interface AuthFormValues {
+  email: string;
+  password: string;
+  name?: string;
+  confirmPassword?: string;
+  agreeToTerms?: boolean;
+  dueDate?: string;
+  babyBirthDate?: string;
+}
+
 export default function AuthForm({ type }: { type: "login" | "register" }) {
   const isLoginMode = type === "login";
   const [isLogin, setIsLogin] = useState(isLoginMode);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  const form = useForm<any>({
+  const form = useForm<AuthFormValues>({
     resolver: zodResolver(isLogin ? loginSchema : signupSchema),
     defaultValues: {
       email: "", password: "", name: "", confirmPassword: "",
@@ -101,24 +110,25 @@ export default function AuthForm({ type }: { type: "login" | "register" }) {
     },
   });
 
-  useEffect(() => { form.reset(); }, [isLogin]);
+  useEffect(() => { form.reset(); }, [isLogin, form]);
 
-  const onSubmit = async (data: any) => {
+  const onSubmit = async (data: AuthFormValues) => {
     try {
       setLoading(true);
       if (isLogin) {
         await loginUser({ email: data.email, password: data.password });
       } else {
         await signupUser({
-          name: data.name, email: data.email, password: data.password,
+          name: data.name ?? "", email: data.email, password: data.password,
           dueDate: data.dueDate || undefined,
           babyBirthDate: data.babyBirthDate || undefined,
         });
       }
       router.push("/dashboard");
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { message?: string; response?: { data?: { message?: string } } };
       form.setError("root", {
-        message: error?.message || error?.response?.data?.message || "Something went wrong",
+        message: err.message || err.response?.data?.message || "Something went wrong",
       });
     } finally {
       setLoading(false);

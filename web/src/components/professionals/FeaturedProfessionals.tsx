@@ -8,7 +8,7 @@ import { getApiBase } from "@/lib/api-url";
 
 const API = getApiBase();
 
-const roleConfig: Record<string, { label: string; color: string; bg: string; Icon: any }> = {
+const roleConfig: Record<string, { label: string; color: string; bg: string; Icon: React.ComponentType<{ size?: number }> }> = {
   MBBS:             { label: "MBBS Doctor",     color: "#E57373", bg: "rgba(229,115,115,0.12)", Icon: Stethoscope },
   AYURVEDA:         { label: "Ayurveda",         color: "#BA68C8", bg: "rgba(186,104,200,0.12)", Icon: Stethoscope },
   NUTRITIONIST:     { label: "Nutritionist",     color: "#4CAF50", bg: "rgba(76,175,80,0.12)",   Icon: Salad },
@@ -52,6 +52,7 @@ function ExpertCard({ expert }: { expert: FeaturedExpert }) {
       {/* Avatar */}
       <div style={{ position: "relative" }}>
         {expert.avatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
           <img
             src={expert.avatarUrl}
             alt={expert.name}
