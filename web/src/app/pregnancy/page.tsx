@@ -35,9 +35,6 @@ export default function PregnancyTracker() {
     return 112;
   }, [user?.dueDate]);
   const dueDateLabel = user?.dueDate ? new Date(user.dueDate).toLocaleDateString() : null;
-  const pregnancyStatus = user?.dueDate
-    ? `Due on ${dueDateLabel}`
-    : "Add your due date to personalize this tracker";
   const kickGoal = 10;
 
   const [kicks, setKicks] = useState(0);
@@ -47,14 +44,28 @@ export default function PregnancyTracker() {
   const [completedMilestones, setCompletedMilestones] = useState<{ week: number; title: string }[]>([]);
   const [togglingMilestone, setTogglingMilestone] = useState<string | null>(null);
 
-  const [bpLogs, setBpLogs] = useState<any[]>([]);
+  interface BloodPressureLog {
+    id: string;
+    systolic: number;
+    diastolic: number;
+    pulse?: number | null;
+    loggedAt: string;
+  }
+
+  interface WeightLog {
+    id: string;
+    weight: number;
+    loggedAt: string;
+  }
+
+  const [bpLogs, setBpLogs] = useState<BloodPressureLog[]>([]);
   const [sysInput, setSysInput] = useState("");
   const [diaInput, setDiaInput] = useState("");
   const [pulseInput, setPulseInput] = useState("");
   const [loggingBp, setLoggingBp] = useState(false);
   const [bpError, setBpError] = useState("");
 
-  const [weightLogs, setWeightLogs] = useState<any[]>([]);
+  const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
   const [weightInput, setWeightInput] = useState("");
   const [loggingWeight, setLoggingWeight] = useState(false);
   const [activeMood, setActiveMood] = useState<string | null>(null);
@@ -63,36 +74,41 @@ export default function PregnancyTracker() {
   useEffect(() => {
     if (!user) return;
     api.get("/pregnancy-milestones")
-      .then((data: any) => {
-        if (data && Array.isArray(data)) setCompletedMilestones(data);
+      .then((data) => {
+        const d = data as { week: number; title: string }[];
+        if (d && Array.isArray(d)) setCompletedMilestones(d);
       })
       .catch(() => {});
 
     api.get("/blood-pressure")
-      .then((data: any) => {
-        if (data && Array.isArray(data)) setBpLogs(data);
+      .then((data) => {
+        const d = data as BloodPressureLog[];
+        if (d && Array.isArray(d)) setBpLogs(d);
       })
       .catch(() => {});
 
     api.get("/weight-logs")
-      .then((data: any) => {
-        if (data && Array.isArray(data)) setWeightLogs(data);
+      .then((data) => {
+        const d = data as WeightLog[];
+        if (d && Array.isArray(d)) setWeightLogs(d);
       })
       .catch(() => {});
 
     api.get("/mood-logs/today")
-      .then((data: any) => {
-        if (data && data.mood) setActiveMood(data.mood);
+      .then((data) => {
+        const d = data as { mood?: string };
+        if (d && d.mood) setActiveMood(d.mood);
       })
       .catch(() => {});
 
     const todayStr = new Date().toISOString().slice(0, 10);
     api.get(`/kick-logs?date=${todayStr}`)
-      .then((data: any) => {
-        if (data && typeof data.count === 'number') {
-          setKicks(data.count);
-          if (data.loggedAt) {
-            setLastKickTime(new Date(data.loggedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+      .then((data) => {
+        const d = data as { count?: number; loggedAt?: string };
+        if (d && typeof d.count === 'number') {
+          setKicks(d.count);
+          if (d.loggedAt) {
+            setLastKickTime(new Date(d.loggedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
           }
         } else {
           setKicks(0);
@@ -181,17 +197,17 @@ export default function PregnancyTracker() {
     setBpError("");
     setLoggingBp(true);
     try {
-      const newLog = await api.post("/blood-pressure", {
+      const newLog = (await api.post("/blood-pressure", {
         systolic: sys,
         diastolic: dia,
         pulse,
-      });
+      })) as BloodPressureLog;
       setBpLogs((prev) => [newLog, ...prev]);
       setSysInput("");
       setDiaInput("");
       setPulseInput("");
-    } catch (err: any) {
-      setBpError(err.message || "Failed to log blood pressure");
+    } catch (err: unknown) {
+      setBpError(err instanceof Error ? err.message : "Failed to log blood pressure");
     } finally {
       setLoggingBp(false);
     }
@@ -225,7 +241,7 @@ export default function PregnancyTracker() {
     
     setLoggingWeight(true);
     try {
-      const newLog = await api.post("/weight-logs", { weight: wt });
+      const newLog = (await api.post("/weight-logs", { weight: wt })) as WeightLog;
       setWeightLogs((prev) => [newLog, ...prev]);
       setWeightInput("");
     } catch {

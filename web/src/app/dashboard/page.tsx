@@ -2,12 +2,11 @@
 
 import { Heart, Calendar, TrendingUp, Bell, ChevronRight, Sparkles, Baby, Users, Star, Shield, Briefcase } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { FeaturedProfessionals } from "../../components/professionals/FeaturedProfessionals";
 import { Card } from "../../components/ui/card";
 import { Progress } from "../../components/ui/progress";
 import { Button } from "../../components/ui/button";
-import { Input } from "../../components/ui/input";
 import { Textarea } from "../../components/ui/textarea";
 import { ImageWithFallback } from "../../components/figma/ImageWithFallback";
 import { ThemeToggle } from "../../components/theme/theme-toggle";
@@ -148,7 +147,7 @@ export default function HomePage() {
         {/* Today's Tasks */}
         <section className="mb-8">
           <div className="flex items-center justify-between mb-4">
-            <h2>Today's Tasks</h2>
+            <h2>Today&apos;s Tasks</h2>
             <Button variant="ghost" size="sm" className="text-primary">
               View All
             </Button>
@@ -252,7 +251,7 @@ export default function HomePage() {
                 </div>
               </div>
               <p className="text-sm mb-4">
-                Connect with other mothers, share experiences, get advice, and celebrate milestones together. You're not alone in this journey!
+                Connect with other mothers, share experiences, get advice, and celebrate milestones together. You&apos;re not alone in this journey!
               </p>
               <Link href="/community">
                 <Button className="w-full rounded-full bg-chart-5 hover:bg-chart-5/90 text-foreground gap-2">

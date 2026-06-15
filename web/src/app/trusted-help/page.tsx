@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import AppShell from "@/components/layout/app-shell";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -228,7 +227,7 @@ function NannyTab({ babyBirthDate }: { babyBirthDate: string | null }) {
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [initialLoaded, setInitialLoaded] = useState(false);
-  const [lastSave, setLastSave] = useState<SavedCheck | null>(null);
+  const [, setLastSave] = useState<SavedCheck | null>(null);
 
   // Load today's saved check on mount
   useEffect(() => {
@@ -239,11 +238,11 @@ function NannyTab({ babyBirthDate }: { babyBirthDate: string | null }) {
           const today = new Date().toISOString().slice(0, 10);
           const saveDate = new Date(data[0].checkedAt).toISOString().slice(0, 10);
           if (saveDate === today) {
-            const savedChecks = data[0].checks as Record<string, any>;
+            const savedChecks = data[0].checks as Record<string, unknown>;
             const { __notes, ...restChecks } = savedChecks;
             setChecked(restChecks as Record<string, boolean>);
             if (__notes) {
-              setNotes(__notes);
+              setNotes(__notes as string);
             }
             setLastSave(data[0]);
           }
@@ -374,7 +373,7 @@ function NannyTab({ babyBirthDate }: { babyBirthDate: string | null }) {
       {!babyBirthDate ? (
         <Card className="rounded-3xl border-none shadow-lg p-6 border-dashed bg-muted/5">
           <p className="text-sm text-muted-foreground">
-            Update your profile with your baby's birth date to see the day-specific checklist.
+            Update your profile with your baby&apos;s birth date to see the day-specific checklist.
           </p>
         </Card>
       ) : (
@@ -414,11 +413,11 @@ function ChefTab() {
           const today = new Date().toISOString().slice(0, 10);
           const saveDate = new Date(data[0].checkedAt).toISOString().slice(0, 10);
           if (saveDate === today) {
-            const savedChecks = data[0].checks as Record<string, any>;
+            const savedChecks = data[0].checks as Record<string, unknown>;
             const { __notes, ...restChecks } = savedChecks;
             setChecked(restChecks as Record<string, boolean>);
             if (__notes) {
-              setNotes(__notes);
+              setNotes(__notes as string);
             }
           }
         }

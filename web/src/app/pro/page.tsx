@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { ProSidebar } from "./pro-sidebar";
 import {
-  CheckCircle, Flag, MessageSquare, Eye, EyeOff, Star,
+  CheckCircle, Flag, MessageSquare, Star,
   FileText, TrendingUp, Clock, BarChart2, Zap, AlertCircle,
   ChevronDown, ChevronUp, RefreshCw, Lock, Unlock,
 } from "lucide-react";

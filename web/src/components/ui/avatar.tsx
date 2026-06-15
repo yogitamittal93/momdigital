@@ -16,6 +16,7 @@ function Avatar({ className, ...props }: React.ComponentProps<"span">) {
 }
 
 function AvatarImage({ className, ...props }: React.ComponentProps<"img">) {
+  // eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text
   return <img className={cn("aspect-square h-full w-full", className)} {...props} />;
 }
 

@@ -350,7 +350,7 @@ export default function BodyRecoveryPage() {
               <div>
                 <h3 className="mb-2 text-destructive">Get Medical Clearance First</h3>
                 <p className="text-sm text-muted-foreground">
-                  Wait for your doctor's approval before starting postpartum
+                  Wait for your doctor&apos;s approval before starting postpartum
                   exercises, especially after a C-section.
                 </p>
               </div>

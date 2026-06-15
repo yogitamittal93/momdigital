@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -28,7 +27,6 @@ interface ProSidebarProps {
 export function ProSidebar({ user }: ProSidebarProps) {
   const pathname = usePathname();
 
-  const isTrainer = user?.role === "YOGA_TRAINER" || user?.role === "WORKOUT_TRAINER";
   const visibleNav = navItems.filter((item) => {
     if (!item.roles) return true;
     return item.roles.includes(user?.role ?? "");

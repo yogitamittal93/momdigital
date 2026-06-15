@@ -64,12 +64,11 @@ export default function AffirmationsPage() {
     setAffirmationError(null);
 
     try {
-      const payload = `Create a supportive affirmation for someone who says: ${customPrompt.trim()}`;
       const data = (await api.post("/affirmations/generate", {
         mood: customPrompt.toLowerCase().includes("anxious") || customPrompt.toLowerCase().includes("worried") ? "anxious" : undefined,
         intention: customPrompt,
       })) as Record<string, unknown>;
-      const reply = (data as any).message ?? parseReply(data);
+      const reply = (data as { message?: string }).message ?? parseReply(data);
       setCustomAffirmation(reply || "Your words are valid, and you are enough.");
       setCustomPrompt("");
     } catch (error: unknown) {

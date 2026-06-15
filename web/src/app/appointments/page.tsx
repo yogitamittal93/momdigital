@@ -6,7 +6,6 @@ import {
   Clock,
   MapPin,
   Plus,
-  ChevronRight,
   Phone,
   Loader2,
   Edit,

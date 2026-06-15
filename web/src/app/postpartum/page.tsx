@@ -133,8 +133,9 @@ export default function PostpartumPage() {
     if (!user) return;
     setLoadingCalendar(true);
     api.get(`/wellness-logs?month=${month}`)
-      .then((data: any) => {
-        const calDays = data.calendarDays ?? {};
+      .then((data) => {
+        const d = data as { calendarDays?: Record<string, string[]> };
+        const calDays = d.calendarDays ?? {};
         setCalendarDays(calDays);
 
         const todayCompleted = calDays[today] ?? [];

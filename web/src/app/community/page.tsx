@@ -9,7 +9,6 @@ import {
 import AppShell from "@/components/layout/app-shell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
 import { useUserProfile } from "@/hooks/use-user-profile";
@@ -409,7 +408,6 @@ export default function CommunityPage() {
   }, []);
 
   useEffect(() => {
-    setLoading(true);
     api.get("/posts?page=1&limit=20")
       .then((data: unknown) => {
         const fetched = Array.isArray(data) ? data : [];

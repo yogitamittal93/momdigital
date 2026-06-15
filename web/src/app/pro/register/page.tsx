@@ -41,8 +41,8 @@ export default function ProRegisterPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message ?? "Registration failed");
       setSubmitted(true);
-    } catch (err: any) {
-      setError(err.message ?? "An error occurred");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setLoading(false);
     }
