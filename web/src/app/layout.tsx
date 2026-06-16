@@ -2,6 +2,8 @@ import { Inter, Quicksand } from "next/font/google";
 import "./globals.css";
 import "../styles/theme.css"; // your file
 import { ThemeProvider } from "@/components/theme/theme-provider";
+import { UserProfileProvider } from "@/context/user-profile-context";
+
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
@@ -23,7 +25,9 @@ export default function RootLayout({
     <html lang="en" className="scroll-smooth" suppressHydrationWarning>
       <body className={`${inter.variable} ${quicksand.variable} antialiased font-sans`}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          {children}
+          <UserProfileProvider>
+            {children}
+          </UserProfileProvider>
         </ThemeProvider>
       </body>
     </html>

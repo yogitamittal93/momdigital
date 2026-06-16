@@ -2,7 +2,8 @@
 
 import { Heart, Calendar, TrendingUp, Bell, ChevronRight, Sparkles, Baby, Users, Star, Shield, Briefcase } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { FeaturedProfessionals } from "../../components/professionals/FeaturedProfessionals";
 import { Card } from "../../components/ui/card";
 import { Progress } from "../../components/ui/progress";
@@ -15,8 +16,23 @@ import { useUserProfile } from "@/hooks/use-user-profile";
 import { api, parseReply } from "@/lib/api-client";
 import { getDaysUntilDue, getPregnancyWeek } from "@/lib/pregnancy";
 
+const EXPERT_ROLES = ["MBBS", "AYURVEDA", "NUTRITIONIST", "CHEF", "YOGA_TRAINER", "WORKOUT_TRAINER", "DANCE_TEACHER", "ADMIN"];
+
 export default function HomePage() {
   const { user, loading } = useUserProfile();
+  const router = useRouter();
+
+  // Redirect experts / admins to the Pro dashboard
+  useEffect(() => {
+    if (!loading && user) {
+      const role = user.role ?? "MOTHER";
+      if (EXPERT_ROLES.includes(role) || user.isAdmin) {
+        router.replace("/pro");
+      }
+    }
+  }, [user, loading, router]);
+
+
   const weekNumber = user?.dueDate ? getPregnancyWeek(user.dueDate) : 24;
   const progressPercentage = (weekNumber / 40) * 100;
   const daysUntilDueDate = user?.dueDate ? getDaysUntilDue(user.dueDate) : 112;

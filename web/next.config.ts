@@ -12,10 +12,8 @@ const isMonorepo = fs.existsSync(path.join(__dirname, "../package.json"));
 const isMobileBuild = process.env.EXPORT_MOBILE === "true";
 
 const nextConfig: NextConfig = {
-  output: isMobileBuild ? "export" : "standalone",
-  images: isMobileBuild
-    ? { unoptimized: true }   // WebView has no Next.js image server
-    : {},
+  output: isMobileBuild ? 'export' : 'standalone',
+  images: isMobileBuild ? { unoptimized: true } : {},
   turbopack: isMonorepo
     ? {
         root: path.join(__dirname, "../"),

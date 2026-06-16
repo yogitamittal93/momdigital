@@ -3,6 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { fetchMe, type ApiUser } from "@/lib/api-client";
 
+/**
+ * useUserProfile — fetches /auth/me and caches the result locally.
+ *
+ * When wrapped by UserProfileProvider (app root), components can also use
+ * useUserProfileContext() directly to share a single fetch across the tree.
+ * This hook is kept for backwards compatibility with existing pages.
+ */
 export function useUserProfile() {
   const [user, setUser] = useState<ApiUser | null>(null);
   const [loading, setLoading] = useState(true);
@@ -17,7 +24,7 @@ export function useUserProfile() {
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     load();
   }, [load]);
 
