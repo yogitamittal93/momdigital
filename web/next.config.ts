@@ -5,9 +5,17 @@ import fs from "fs";
 // Check if we are running in the monorepo workspace or a standalone Docker container
 const isMonorepo = fs.existsSync(path.join(__dirname, "../package.json"));
 
+// When EXPORT_MOBILE=true, produce a fully-static export consumed by
+// Ionic Capacitor (Android / iOS WebView). The live Docker/web build
+// always uses the default `standalone` output — this env flag is ONLY
+// set by the `build:mobile` script.
+const isMobileBuild = process.env.EXPORT_MOBILE === "true";
+
 const nextConfig: NextConfig = {
-  output: 'standalone',
-  /* config options here */
+  output: isMobileBuild ? "export" : "standalone",
+  images: isMobileBuild
+    ? { unoptimized: true }   // WebView has no Next.js image server
+    : {},
   turbopack: isMonorepo
     ? {
         root: path.join(__dirname, "../"),
