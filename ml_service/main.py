@@ -28,9 +28,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Simple in-memory rate limiter: 20 requests per minute per IP
+# Simple in-memory rate limiter: 60 requests per minute per user/IP
 _rate_limit_store: dict[str, list[float]] = defaultdict(list)
-RATE_LIMIT = 20
+RATE_LIMIT = 60
 RATE_WINDOW_SEC = 60
 
 
@@ -79,22 +79,24 @@ def extract():
 @app.route("/query", methods=["POST"])
 def query():
     try:
+        data = request.get_json()
+        if not data or not data.get("question"):
+            return jsonify({"error": "No question provided"}), 400
+
         client_ip = request.remote_addr or "unknown"
-        if not _check_rate_limit(client_ip):
+        user_id = data.get("userId") or data.get("user_id") or client_ip
+
+        if not _check_rate_limit(user_id):
             return jsonify({
                 "error": "Rate limit exceeded. Please wait before sending more questions.",
                 "confidence": "requires_doctor",
             }), 429
 
-        data = request.get_json()
-        if not data or not data.get("question"):
-            return jsonify({"error": "No question provided"}), 400
-
         question = data["question"].strip()
         category = data.get("category", "general")
         ner_context = data.get("nerContext", {})
-        conversation_history = data.get("conversationHistory", [])  # ← ADD
-        user_id = data.get("userId", "anonymous")                   # ← ADD
+        conversation_history = data.get("conversationHistory", [])
+        user_id = data.get("userId", "anonymous")
 
         if check_emergency(question):
             logger.warning("EMERGENCY detected in query: %s...", question[:50])

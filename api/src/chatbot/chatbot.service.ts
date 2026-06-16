@@ -683,6 +683,7 @@ export class ChatbotService {
           {
             question: message,
             category,
+            userId,
             nerContext: {
               pregnancyWeek: extracted.pregnancyWeek,
               babyAgeMonths: extracted.babyAgeMonths,

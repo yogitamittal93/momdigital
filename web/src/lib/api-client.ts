@@ -16,19 +16,47 @@ export type CareerPlan = {
   } | null;
 };
 
+export type UserRole =
+  | "MOTHER"
+  | "MBBS"
+  | "AYURVEDA"
+  | "NUTRITIONIST"
+  | "CHEF"
+  | "YOGA_TRAINER"
+  | "WORKOUT_TRAINER"
+  | "DANCE_TEACHER"
+  | "ADMIN";
+
+export type ExpertStatus =
+  | "PENDING_APPROVAL"
+  | "APPROVED"
+  | "SUSPENDED"
+  | "REJECTED";
+
 export type ApiUser = {
   id: string;
   email: string;
   name: string;
+  // Role & approval
+  role?: UserRole;
+  expertStatus?: ExpertStatus | null;
+  isAdmin?: boolean;
+  // Expert profile
+  specialization?: string | null;
+  externalLink?: string | null;
+  contributionCount?: number;
+  isFeatured?: boolean;
+  // Mother fields
   dueDate?: string | null;
   babyBirthDate?: string | null;
   babyName?: string | null;
   deliveryType?: string | null;
+  // Shared
   avatarUrl?: string | null;
   profileImage?: string | null;
-  role?: string;
   weight?: number | null;
   height?: number | null;
+  whatsappNumber?: string | null;
   careerPlan?: CareerPlan | null;
 };
 
