@@ -215,9 +215,9 @@ jobs:
           CLIENT_URL: http://127.0.0.1:${{ env.WEB_PORT }}
           CLIENT_URLS: http://127.0.0.1:${{ env.WEB_PORT }}
           REDIS_URL: redis://127.0.0.1:6379
-          # ML_SERVICE_URL intentionally omitted — chatbot E2E tests are skipped in CI
-          # (ML service requires ChromaDB population from HF Hub, not feasible in CI)
-          ML_SERVICE_URL: ''
+          # ML_SERVICE_URL set to mock URL — chatbot E2E tests are skipped in CI,
+          # but a valid URL format is required by config validation
+          ML_SERVICE_URL: http://127.0.0.1:5000
           GROQ_API_KEY: ci_mock_key
 
       - name: Wait for API to be ready
@@ -226,11 +226,13 @@ jobs:
           for i in $(seq 1 30); do
             if curl -sf http://127.0.0.1:${{ env.API_PORT }}/api/health > /dev/null 2>&1; then
               echo "API is up!"
-              break
+              exit 0
             fi
             echo "  attempt $i/30 — waiting 2s..."
             sleep 2
           done
+          echo "API failed to start!"
+          exit 1
 
       - name: Start Next.js server (background, reuse build artifact)
         working-directory: web
@@ -247,11 +249,13 @@ jobs:
           for i in $(seq 1 30); do
             if curl -sf http://127.0.0.1:${{ env.WEB_PORT }} > /dev/null 2>&1; then
               echo "Next.js is up!"
-              break
+              exit 0
             fi
             echo "  attempt $i/30 — waiting 2s..."
             sleep 2
           done
+          echo "Next.js failed to start!"
+          exit 1
 
       - name: Run Playwright smoke tests
         run: npx playwright test tests/e2e/smoke.spec.ts --reporter=list,junit
