@@ -24,9 +24,21 @@ export function useUserProfile() {
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    load();
-  }, [load]);
+    let active = true;
+    fetchMe()
+      .then((u) => {
+        if (active) setUser(u);
+      })
+      .catch((e: Error) => {
+        if (active) setError(e.message);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   /** Call this after a PATCH /auth/me to re-sync local state. */
   const refreshUser = useCallback(() => {

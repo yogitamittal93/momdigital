@@ -43,8 +43,21 @@ export function UserProfileProvider({ children }: { children: React.ReactNode })
   }, []);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    let active = true;
+    fetchMe()
+      .then((u) => {
+        if (active) setUser(u);
+      })
+      .catch((e: Error) => {
+        if (active) setError(e.message);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const refreshUser = useCallback(() => {
     load();
