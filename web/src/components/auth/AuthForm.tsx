@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { loginUser, signupUser } from "@/services/auth.service";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -198,7 +199,16 @@ export default function AuthForm({ type }: { type: "login" | "register" }) {
                 <FormItem>
                   <div className="flex gap-2 items-center">
                     <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                    <FormLabel className="cursor-pointer">I accept the terms of service</FormLabel>
+                    <FormLabel className="cursor-pointer text-xs sm:text-sm">
+                      I accept the{" "}
+                      <Link href="/terms" className="underline hover:text-primary transition-colors">
+                        terms of service
+                      </Link>{" "}
+                      and{" "}
+                      <Link href="/privacy" className="underline hover:text-primary transition-colors">
+                        privacy policy
+                      </Link>
+                    </FormLabel>
                   </div>
                   <FormMessage />
                 </FormItem>

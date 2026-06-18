@@ -459,6 +459,28 @@ export default function ProfilePage() {
             </Card>
           )}
 
+          {/* ── Legal & Support (shared) ────────────────────────────────── */}
+          <Card className="rounded-3xl border-none shadow-lg p-6 mb-6 bg-card text-foreground">
+            <h3 className="mb-4">Information &amp; Support</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Link href="/about" className="flex items-center gap-2 p-3 bg-muted/30 hover:bg-muted/60 rounded-2xl transition-colors text-sm font-semibold">
+                About Mom Digital
+              </Link>
+              <Link href="/support" className="flex items-center gap-2 p-3 bg-muted/30 hover:bg-muted/60 rounded-2xl transition-colors text-sm font-semibold">
+                Support &amp; Help
+              </Link>
+              <Link href="/contact" className="flex items-center gap-2 p-3 bg-muted/30 hover:bg-muted/60 rounded-2xl transition-colors text-sm font-semibold">
+                Contact Us
+              </Link>
+              <Link href="/privacy" className="flex items-center gap-2 p-3 bg-muted/30 hover:bg-muted/60 rounded-2xl transition-colors text-sm font-semibold">
+                Privacy Policy
+              </Link>
+              <Link href="/terms" className="flex items-center gap-2 p-3 bg-muted/30 hover:bg-muted/60 rounded-2xl transition-colors text-sm font-semibold sm:col-span-2 justify-center">
+                Terms of Service
+              </Link>
+            </div>
+          </Card>
+
           {/* ── Sign out ────────────────────────────────────────────────── */}
           <Button
             variant="outline"
