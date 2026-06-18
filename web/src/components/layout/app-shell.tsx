@@ -20,6 +20,7 @@ import {
   FileText,
   Activity,
   AlertCircle,
+  MessageSquare,
 } from "lucide-react";
 import { useUserProfileContext } from "@/context/user-profile-context";
 import type { UserRole } from "@/lib/api-client";
@@ -28,6 +29,7 @@ import type { UserRole } from "@/lib/api-client";
 // ─── Mother navigation ───────────────────────────────────────────────────────
 
 const motherNavItems = [
+  { path: "/chat", icon: MessageSquare, label: "Maternity Help" },
   { path: "/dashboard", icon: Home, label: "Home" },
   { path: "/pregnancy", icon: Heart, label: "Pregnancy" },
   { path: "/appointments", icon: Calendar, label: "Appointments" },
@@ -272,6 +274,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         )}
       </nav>
+
+      {/* Floating Chat Button for patients */}
+      {!isExpert && user && (
+        <Link
+          href="/chat"
+          className="fixed bottom-24 right-6 md:bottom-8 md:right-8 w-14 h-14 rounded-full bg-primary text-white shadow-xl hover:scale-110 active:scale-95 transition-all flex items-center justify-center z-[99] hover:bg-primary/95 group"
+          aria-label="Maternity Help"
+        >
+          <MessageSquare className="w-6 h-6 group-hover:rotate-6 transition-transform" />
+        </Link>
+      )}
     </div>
   );
 }

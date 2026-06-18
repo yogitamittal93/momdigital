@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Bell, Briefcase, Heart, LogOut, Moon, Pen, Shield, Star, User } from "lucide-react";
+import { Bell, Briefcase, Heart, LogOut, Moon, Pen, Shield, Star, User, MessageSquare } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AppShell from "@/components/layout/app-shell";
@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
-import { ChatWindow } from "@/components/chat/ChatWindow";
+// ChatWindow removed (relocated to dedicated /chat route)
 import { fetchMe, ApiUser } from "@/lib/api-client";
 import { updateProfile } from "@/services/auth.service";
 
@@ -179,7 +179,16 @@ export default function ProfilePage() {
         <div className="bg-gradient-to-br from-primary/20 via-secondary/10 to-background px-4 md:px-8 pt-8 pb-16 rounded-b-[3rem]">
           <div className="max-w-4xl mx-auto">
             <h1 className="text-2xl md:text-3xl mb-6">Profile</h1>
-            {isMother && <ChatWindow />}
+            {isMother && (
+              <div className="mb-6">
+                <Link href="/chat">
+                  <Button className="rounded-full bg-primary hover:bg-primary/95 text-white gap-2 shadow-lg h-12 px-6">
+                    <MessageSquare className="w-5 h-5" />
+                    Ask Matrny (Maternity Help)
+                  </Button>
+                </Link>
+              </div>
+            )}
             <Card className="rounded-3xl border-none shadow-lg p-6 -mb-12">
               <div className="flex items-center gap-4">
                 <Avatar className="w-20 h-20">

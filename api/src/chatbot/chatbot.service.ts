@@ -36,8 +36,25 @@ export class ChatbotService {
 
   async processUserMessage(userId: string, message: string) {
     try {
+      // 1. Save user query to DB
+      const userMsg = await this.prisma.chatMessage.create({
+        data: {
+          userId,
+          role: 'user',
+          content: message,
+        },
+      });
+
+      // 2. Check if there is an approved doctor answer for this exact question
       const approved = await this.doctorQueue.getApprovedAnswer(message);
       if (approved) {
+        await this.prisma.chatMessage.create({
+          data: {
+            userId,
+            role: 'assistant',
+            content: approved.answer,
+          },
+        });
         return {
           reply: approved.answer,
           needsConfirmation: false,
@@ -47,6 +64,7 @@ export class ChatbotService {
         };
       }
 
+      // 3. Extract entities from the user message via ML service
       let extracted: Record<string, unknown>;
       try {
         const mlResponse = await firstValueFrom(
@@ -73,18 +91,38 @@ export class ChatbotService {
         };
       }
 
+      // 4. Update the saved user message with the extracted entities
+      try {
+        await this.prisma.chatMessage.update({
+          where: { id: userMsg.id },
+          data: { extractedData: extracted as any },
+        });
+      } catch (dbErr) {
+        this.logger.warn(`Failed to save extractedData to ChatMessage: ${dbErr.message}`);
+      }
+
+      // 5. Validate extracted data (e.g. range of weight/height)
       const validation = this.validateExtractedData(extracted);
       if (!validation.isValid) {
+        await this.prisma.chatMessage.create({
+          data: {
+            userId,
+            role: 'assistant',
+            content: validation.errorMessage,
+          },
+        });
         return {
           reply: validation.errorMessage,
           needsConfirmation: true,
-          confidence: 'auto_safe', // NOT requires_doctor — this is a clarification, not an emergency
+          confidence: 'auto_safe',
           sources: [],
         };
       }
 
+      // 6. Save extracted data to Prisma (profile auto-sync)
       await this.saveDataToPrisma(userId, extracted);
 
+      // 7. Fetch user profile
       let user: {
         id: string;
         name: string;
@@ -117,57 +155,96 @@ export class ChatbotService {
 
       if (!user) throw new NotFoundException('User not found');
 
-      const vitals = await this.userHasVitals(userId, extracted, user);
+      // 8. Hinglish & standard greetings detection
+      const cleanMessage = message.trim().toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "");
+      const greetings = ['hi', 'hello', 'hey', 'namaste', 'greetings', 'hola', 'hii', 'hiii', 'heyy'];
+      const isGreeting = greetings.includes(cleanMessage);
 
-      const onboardingComplete =
-        user.name &&
-        !user.name.toLowerCase().includes('guest') &&
-        (user.dueDate ||
-          user.babyBirthDate ||
-          extracted.pregnancyWeek ||
-          extracted.babyAgeMonths) &&
-        vitals.hasWeight &&
-        vitals.hasHeight;
-
-      if (onboardingComplete) {
-        const ragResult = await this.getRAGResponse(
-          message,
-          extracted,
-          user,
-          userId,
-        );
-        if (ragResult) {
-          if (
-            ragResult.queueForDoctor ||
-            ragResult.confidence === 'requires_doctor'
-          ) {
-            await this.queueDoctorReview(userId, message, ragResult);
-          }
-
-          return {
-            reply: ragResult.reply,
-            extractedData: extracted,
-            needsConfirmation: false,
-            source: 'rag',
-            confidence: ragResult.confidence,
-            sources: ragResult.sources,
-          };
-        }
+      if (isGreeting) {
+        const reply = this.generateSmartReply(user, extracted, message);
+        await this.prisma.chatMessage.create({
+          data: {
+            userId,
+            role: 'assistant',
+            content: reply,
+          },
+        });
+        return {
+          reply,
+          extractedData: extracted,
+          needsConfirmation: false,
+          source: 'onboarding',
+          confidence: 'auto_safe',
+          sources: [],
+        };
       }
 
+      // 9. Bypass onboarding: Always try RAG query for health / general wellness questions
+      const ragResult = await this.getRAGResponse(
+        message,
+        extracted,
+        user,
+        userId,
+      );
+
+      if (ragResult) {
+        if (
+          ragResult.queueForDoctor ||
+          ragResult.confidence === 'requires_doctor'
+        ) {
+          await this.queueDoctorReview(userId, message, ragResult);
+        }
+
+        await this.prisma.chatMessage.create({
+          data: {
+            userId,
+            role: 'assistant',
+            content: ragResult.reply,
+          },
+        });
+
+        return {
+          reply: ragResult.reply,
+          extractedData: extracted,
+          needsConfirmation: false,
+          source: 'rag',
+          confidence: ragResult.confidence,
+          sources: ragResult.sources,
+        };
+      }
+
+      // 10. Fallback to onboarding / smart reply if RAG is skipped or fails
+      const reply = this.generateSmartReply(user, extracted, message);
+      await this.prisma.chatMessage.create({
+        data: {
+          userId,
+          role: 'assistant',
+          content: reply,
+        },
+      });
       return {
-        reply: this.generateSmartReply(user, extracted, message),
+        reply,
         extractedData: extracted,
         needsConfirmation: false,
         source: 'onboarding',
         confidence: 'auto_safe',
         sources: [],
       };
+
     } catch (error) {
       this.logger.error(`ML Service Error: ${(error as Error).message}`);
+      const fallbackReply = 'Amma is having a little trouble right now. Please try again later. For urgent concerns, call NHM helpline: 104.';
+      try {
+        await this.prisma.chatMessage.create({
+          data: {
+            userId,
+            role: 'assistant',
+            content: fallbackReply,
+          },
+        });
+      } catch {}
       return {
-        reply:
-          'Amma is having a little trouble right now. Please try again later. For urgent concerns, call NHM helpline: 104.',
+        reply: fallbackReply,
         confidence: 'requires_doctor',
         sources: [],
       };
@@ -603,57 +680,17 @@ export class ChatbotService {
   private async getRAGResponse(
     message: string,
     extracted: Record<string, unknown>,
-    user: { dueDate: Date | null },
+    user: {
+      id: string;
+      name: string;
+      dueDate: Date | null;
+      babyBirthDate: Date | null;
+      weight: number | null;
+      height: number | null;
+      deliveryType: string | null;
+    },
     userId: string,
   ): Promise<RagResult | null> {
-    const healthKeywords = [
-      'eat',
-      'food',
-      'diet',
-      'recipe',
-      'pain',
-      'feel',
-      'symptom',
-      'medicine',
-      'exercise',
-      'massage',
-      'baby',
-      'breastfeed',
-      'sleep',
-      'nausea',
-      'vomit',
-      'tired',
-      'iron',
-      'calcium',
-      'ayurved',
-      'herb',
-      'when should',
-      'how should',
-      'what should',
-      'is it safe',
-      'can i',
-      'should i',
-    ];
-
-    const isHealthQuestion = healthKeywords.some((kw) =>
-      message.toLowerCase().includes(kw),
-    );
-
-    const emergencyKeywords = [
-      'not breathing',
-      'not moving',
-      'unconscious',
-      'emergency',
-      'heavy bleeding',
-      'baby not moving',
-      "can't breathe",
-    ];
-    const isEmergency = emergencyKeywords.some((kw) =>
-      message.toLowerCase().includes(kw),
-    );
-
-    if (!isHealthQuestion && !isEmergency) return null;
-
     try {
       let category = 'general';
       if (extracted.pregnancyWeek) category = 'maternal';
@@ -664,18 +701,63 @@ export class ChatbotService {
         category = 'nutrition';
       }
 
-      // Fetch last 4 messages from DB — passed to ML service so conversation
-      // context survives server restarts instead of living in Python memory.
+      // Fetch last 8 messages from DB
       const recentMessages = await this.prisma.chatMessage.findMany({
         where: { userId },
         orderBy: { createdAt: 'desc' },
-        take: 4,
+        take: 8,
         select: { role: true, content: true },
       });
       // Reverse so oldest comes first (chronological order for the prompt)
       const conversationHistory = recentMessages
         .reverse()
         .map((m) => ({ role: m.role, content: m.content }));
+
+      // Calculate pregnancy week from user.dueDate
+      let pregnancyWeek = extracted.pregnancyWeek as number | null;
+      if (!pregnancyWeek && user.dueDate) {
+        const today = new Date();
+        const due = new Date(user.dueDate);
+        const msDiff = due.getTime() - today.getTime();
+        const daysDiff = Math.ceil(msDiff / (1000 * 60 * 60 * 24));
+        const weeksRemaining = daysDiff / 7;
+        pregnancyWeek = Math.max(1, Math.min(42, Math.round(40 - weeksRemaining)));
+      }
+
+      // Calculate baby age in months from user.babyBirthDate
+      let babyAgeMonths = extracted.babyAgeMonths as number | null;
+      if (!babyAgeMonths && user.babyBirthDate) {
+        const today = new Date();
+        const birth = new Date(user.babyBirthDate);
+        const months = (today.getFullYear() - birth.getFullYear()) * 12 + (today.getMonth() - birth.getMonth());
+        babyAgeMonths = Math.max(0, months);
+      }
+
+      // Calculate if profile is complete for health guidance (week/age + vitals)
+      const vitals = await this.userHasVitals(userId, extracted, user);
+      const hasVitals = vitals.hasWeight && vitals.hasHeight;
+      const hasStage = user.dueDate || user.babyBirthDate || extracted.pregnancyWeek || extracted.babyAgeMonths;
+      const profileComplete = Boolean(user.name && !user.name.toLowerCase().includes('guest') && hasStage && hasVitals);
+
+      // List what key fields are missing
+      const missingFields: string[] = [];
+      if (!user.name || user.name.toLowerCase().includes('guest')) missingFields.push('name');
+      if (!user.dueDate && !extracted.pregnancyWeek && !user.babyBirthDate && !extracted.babyAgeMonths) {
+        missingFields.push('pregnancyWeekOrBabyAge');
+      }
+      if (!vitals.hasWeight) missingFields.push('weight');
+      if (!vitals.hasHeight) missingFields.push('height');
+
+      const nerContext = {
+        pregnancyWeek: pregnancyWeek || null,
+        babyAgeMonths: babyAgeMonths || null,
+        conditions: extracted.conditions || [],
+        recentWeightKg: extracted.weight_value || user.weight || null,
+        recentHeightCm: extracted.height_value || user.height || null,
+        name: extracted.name || user.name || null,
+        profileComplete,
+        missingFields,
+      };
 
       const ragResponse = await firstValueFrom(
         this.httpService.post(
@@ -684,14 +766,8 @@ export class ChatbotService {
             question: message,
             category,
             userId,
-            nerContext: {
-              pregnancyWeek: extracted.pregnancyWeek,
-              babyAgeMonths: extracted.babyAgeMonths,
-              conditions: extracted.conditions,
-              weight: extracted.weight_value,
-              height: extracted.height_value,
-            },
-            conversationHistory, // ← NEW: passed from DB, not Python memory
+            nerContext,
+            conversationHistory,
           },
           { timeout: 30000 },
         ),

@@ -102,4 +102,45 @@ export class NannyController {
       limit ? parseInt(limit, 10) : 10,
     );
   }
+
+  /**
+   * GET /nanny/caregiver?helperType=nanny|chef
+   * Fetch all caregivers of the specified helperType for the logged-in user.
+   */
+  @Get('caregiver')
+  listCaregivers(
+    @Req() req: { user: { userId: string } },
+    @Query('helperType') helperType: string,
+  ) {
+    return this.nannyService.listCaregivers(req.user.userId, helperType);
+  }
+
+  /**
+   * POST /nanny/caregiver
+   * Register and assign a new caregiver.
+   * Body: { name: string, helperType: string }
+   */
+  @Post('caregiver')
+  createCaregiver(
+    @Req() req: { user: { userId: string } },
+    @Body() body: { name: string; helperType: string },
+  ) {
+    return this.nannyService.createCaregiver(
+      req.user.userId,
+      body.helperType,
+      body.name,
+    );
+  }
+
+  /**
+   * POST /nanny/caregiver/:id/reset
+   * Reset the trust streak and status of a caregiver.
+   */
+  @Post('caregiver/:id/reset')
+  resetStreak(
+    @Req() req: { user: { userId: string } },
+    @Param('id') id: string,
+  ) {
+    return this.nannyService.resetCaregiverStreak(req.user.userId, id);
+  }
 }

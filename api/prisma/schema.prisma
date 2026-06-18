@@ -112,6 +112,7 @@ model User {
   wellnessChecklistLogs  WellnessChecklistLog[]
   feedingLogs         FeedingLog[]
   trustedHelperChecks TrustedHelperCheck[]
+  caregivers          Caregiver[]
   weightLogs          WeightLog[]
   moodLogs            MoodLog[]
   kickLogs            KickLog[]
@@ -565,15 +566,33 @@ model FeedingLog {
   @@map("feeding_logs")
 }
 
-model TrustedHelperCheck {
-  id         String   @id @default(uuid())
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+model Caregiver {
+  id                       String               @id @default(uuid())
+  userId                   String
+  user                     User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name                     String
+  helperType               String               // "nanny" | "chef"
+  consecutiveCheckedInDays Int                  @default(0)
+  status                   String               @default("Verifying") // "Verifying" | "Trusted"
+  lastCheckedIn            DateTime?
+  isAssigned               Boolean              @default(true)
+  checks                   TrustedHelperCheck[]
+  createdAt                DateTime             @default(now())
+  updatedAt                DateTime             @updatedAt
 
-  helperType String   // "nanny" | "chef"
-  checks     Json
-  score      Int
-  checkedAt  DateTime @default(now())
+  @@map("caregivers")
+}
+
+model TrustedHelperCheck {
+  id          String     @id @default(uuid())
+  userId      String
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  helperType  String     // "nanny" | "chef"
+  checks      Json
+  score       Int
+  checkedAt   DateTime   @default(now())
+  caregiverId String?
+  caregiver   Caregiver? @relation(fields: [caregiverId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@map("trusted_helper_checks")
