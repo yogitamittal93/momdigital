@@ -152,6 +152,99 @@ function ScoreRing({ score, size = 80 }: { score: number; size?: number }) {
   );
 }
 
+// ── Caregiver entity and manager component ────────────────────────────────────
+
+interface Caregiver {
+  id: string;
+  name: string;
+  helperType: string;
+  consecutiveCheckedInDays: number;
+  status: "Verifying" | "Trusted";
+  lastCheckedIn: string | null;
+  isAssigned: boolean;
+}
+
+function CaregiverManager({
+  helperType,
+  activeCaregiver,
+  onChange,
+}: {
+  helperType: "nanny" | "chef";
+  activeCaregiver: Caregiver | null;
+  onChange: () => void;
+}) {
+  const [loading, setLoading] = useState(false);
+
+  const handleReset = async () => {
+    if (!activeCaregiver) return;
+    if (!confirm(`Are you sure you want to reset the streak for this helper?`)) return;
+    setLoading(true);
+    try {
+      await api.post(`/nanny/caregiver/${activeCaregiver.id}/reset`);
+      onChange();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Card className="rounded-3xl border-none shadow-lg p-6 bg-card">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              {helperType === "nanny" ? "Nanny" : "Chef"} Streak Status
+            </h4>
+            {activeCaregiver && (
+              <Badge
+                variant={activeCaregiver.status === "Trusted" ? "default" : "secondary"}
+                className={`rounded-full text-xs font-semibold px-2.5 py-0.5 ${
+                  activeCaregiver.status === "Trusted"
+                    ? "bg-emerald-500 hover:bg-emerald-600 text-white"
+                    : "bg-amber-500 hover:bg-amber-600 text-white"
+                }`}
+              >
+                {activeCaregiver.status}
+              </Badge>
+            )}
+          </div>
+          {activeCaregiver ? (
+            <div>
+              <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
+                <span className="text-lg font-bold text-primary bg-primary/10 px-3 py-1 rounded-xl">
+                  {activeCaregiver.consecutiveCheckedInDays} day streak
+                </span>
+                <span>•</span>
+                <span>
+                  {activeCaregiver.lastCheckedIn
+                    ? `Last checked: ${new Date(activeCaregiver.lastCheckedIn).toLocaleDateString()}`
+                    : "No check-ins yet"}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <p className="text-muted-foreground text-sm">Loading streak details...</p>
+          )}
+        </div>
+
+        <div>
+          {activeCaregiver && (
+            <button
+              onClick={handleReset}
+              disabled={loading}
+              className="px-4 py-2 text-xs font-medium border border-destructive/30 text-destructive hover:bg-destructive/10 rounded-2xl transition-all"
+            >
+              Reset Streak
+            </button>
+          )}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 // ── Checklist component (shared by nanny + chef tabs) ─────────────────────────
 
 function ChecklistCard({
@@ -228,9 +321,22 @@ function NannyTab({ babyBirthDate }: { babyBirthDate: string | null }) {
   const [saving, setSaving] = useState(false);
   const [initialLoaded, setInitialLoaded] = useState(false);
   const [, setLastSave] = useState<SavedCheck | null>(null);
+  const [activeCaregiver, setActiveCaregiver] = useState<Caregiver | null>(null);
+
+  const fetchCaregiver = useCallback(() => {
+    api.get("/nanny/caregiver?helperType=nanny")
+      .then((res: unknown) => {
+        const data = res as Caregiver[];
+        if (data && data.length > 0) {
+          setActiveCaregiver(data[0]);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Load today's saved check on mount
   useEffect(() => {
+    fetchCaregiver();
     api.get("/nanny/check?helperType=nanny&limit=1")
       .then((res: unknown) => {
         const data = res as SavedCheck[];
@@ -252,7 +358,7 @@ function NannyTab({ babyBirthDate }: { babyBirthDate: string | null }) {
       .finally(() => {
         setInitialLoaded(true);
       });
-  }, []);
+  }, [fetchCaregiver]);
 
   const toggle = useCallback((id: string) => {
     setChecked((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -288,12 +394,13 @@ function NannyTab({ babyBirthDate }: { babyBirthDate: string | null }) {
         notes: latestNotes,
       }) as SavedCheck;
       setLastSave(result);
+      fetchCaregiver();
     } catch {
       // silent
     } finally {
       setSaving(false);
     }
-  }, []);
+  }, [fetchCaregiver]);
 
   useEffect(() => {
     if (!initialLoaded) return;
@@ -305,9 +412,17 @@ function NannyTab({ babyBirthDate }: { babyBirthDate: string | null }) {
   }, [checked, notes, initialLoaded, calculateScore, handleSave]);
 
   const isWeeklyDay = dayNumber > 30 && dayNumber % 7 !== 0;
+  const isTrusted = activeCaregiver?.status === "Trusted";
 
   return (
     <div className="space-y-4">
+      {/* Caregiver streak layer */}
+      <CaregiverManager
+        helperType="nanny"
+        activeCaregiver={activeCaregiver}
+        onChange={fetchCaregiver}
+      />
+
       {/* Header card — day + score */}
       <Card className="rounded-3xl border-none shadow-lg p-6">
         <div className="flex items-center justify-between gap-4">
@@ -341,9 +456,11 @@ function NannyTab({ babyBirthDate }: { babyBirthDate: string | null }) {
             <p className="text-sm text-muted-foreground">
               {!babyBirthDate
                 ? "Add your baby's birth date to see a personalised checklist."
+                : isTrusted
+                ? `Required checks: Weekly (${items.length} checks)`
                 : isWeeklyDay
                 ? "Non-weekly day — standard daily checks apply."
-                : `${items.length} checks for today`}
+                : `${items.length} checks for today (Required checks: Daily)`}
             </p>
           </div>
           <ScoreRing score={score} />
@@ -369,18 +486,33 @@ function NannyTab({ babyBirthDate }: { babyBirthDate: string | null }) {
         </Card>
       )}
 
-      {/* Checklist */}
-      {!babyBirthDate ? (
-        <Card className="rounded-3xl border-none shadow-lg p-6 border-dashed bg-muted/5">
-          <p className="text-sm text-muted-foreground">
-            Update your profile with your baby&apos;s birth date to see the day-specific checklist.
-          </p>
-        </Card>
-      ) : (
-        <Card className="rounded-3xl border-none shadow-lg p-6">
-          <ChecklistCard items={items} checked={checked} onToggle={toggle} />
+      {/* Trusted optional alert */}
+      {isTrusted && dayNumber % 7 !== 0 && (
+        <Card className="rounded-3xl border-none shadow-lg p-5 bg-gradient-to-br from-emerald-500/10 to-teal-500/10 border border-emerald-500/20">
+          <div className="flex items-start gap-3">
+            <CheckCircle2 className="w-5 h-5 text-emerald-500 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">
+                Caregiver is Trusted!
+              </p>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Daily checks are optional today. Next required weekly check is on Day {Math.ceil(dayNumber / 7) * 7}.
+              </p>
+            </div>
+          </div>
         </Card>
       )}
+
+      {/* Checklist */}
+      <Card className="rounded-3xl border-none shadow-lg p-6">
+        {!babyBirthDate && (
+          <div className="mb-4 p-3 rounded-2xl bg-muted/20 text-xs text-muted-foreground">
+            <Info className="w-3.5 h-3.5 inline mr-1 text-primary" />
+            Showing default Day 1 checklist. Add your baby&apos;s birth date in your profile to customize this checklist.
+          </div>
+        )}
+        <ChecklistCard items={items} checked={checked} onToggle={toggle} />
+      </Card>
 
       {/* Notes */}
       <Card className="rounded-3xl border-none shadow-lg p-6">
@@ -403,9 +535,22 @@ function ChefTab() {
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [initialLoaded, setInitialLoaded] = useState(false);
+  const [activeCaregiver, setActiveCaregiver] = useState<Caregiver | null>(null);
+
+  const fetchCaregiver = useCallback(() => {
+    api.get("/nanny/caregiver?helperType=chef")
+      .then((res: unknown) => {
+        const data = res as Caregiver[];
+        if (data && data.length > 0) {
+          setActiveCaregiver(data[0]);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Load today's saved check on mount
   useEffect(() => {
+    fetchCaregiver();
     api.get("/nanny/check?helperType=chef&limit=1")
       .then((res: unknown) => {
         const data = res as SavedCheck[];
@@ -426,7 +571,7 @@ function ChefTab() {
       .finally(() => {
         setInitialLoaded(true);
       });
-  }, []);
+  }, [fetchCaregiver]);
 
   const toggle = useCallback((id: string) => {
     setChecked((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -457,12 +602,13 @@ function ChefTab() {
         score: latestScore,
         notes: latestNotes,
       });
+      fetchCaregiver();
     } catch {
       // silent
     } finally {
       setSaving(false);
     }
-  }, []);
+  }, [fetchCaregiver]);
 
   useEffect(() => {
     if (!initialLoaded) return;
@@ -475,6 +621,13 @@ function ChefTab() {
 
   return (
     <div className="space-y-4">
+      {/* Caregiver streak layer */}
+      <CaregiverManager
+        helperType="chef"
+        activeCaregiver={activeCaregiver}
+        onChange={fetchCaregiver}
+      />
+
       {/* Header card */}
       <Card className="rounded-3xl border-none shadow-lg p-6">
         <div className="flex items-center justify-between gap-4">
@@ -498,12 +651,29 @@ function ChefTab() {
               </span>
             </h3>
             <p className="text-sm text-muted-foreground">
-              {CHEF_CHECKLIST.length} checks · postpartum kitchen safety
+              {CHEF_CHECKLIST.length} checks · postpartum kitchen safety (Required checks: {activeCaregiver?.status === "Trusted" ? "Weekly" : "Daily"})
             </p>
           </div>
           <ScoreRing score={isNaN(score) ? 0 : score} />
         </div>
       </Card>
+
+      {/* Trusted optional alert for Chef */}
+      {activeCaregiver?.status === "Trusted" && (
+        <Card className="rounded-3xl border-none shadow-lg p-5 bg-gradient-to-br from-emerald-500/10 to-teal-500/10 border border-emerald-500/20">
+          <div className="flex items-start gap-3">
+            <CheckCircle2 className="w-5 h-5 text-emerald-500 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">
+                Chef is Trusted!
+              </p>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Daily checks are optional. Next required check is in 7 days.
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
 
       {/* Checklist */}
       <Card className="rounded-3xl border-none shadow-lg p-6">
