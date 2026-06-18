@@ -307,6 +307,7 @@ function ComposeModal({ open, onClose, onCreated }: {
   const { register, handleSubmit, watch, reset, formState: { errors, isSubmitting } } = useForm<CreatePostInput>({
     resolver: zodResolver(createPostSchema),
   });
+  // eslint-disable-next-line react-hooks/incompatible-library
   const content = watch("content", "");
   const dialogRef = useRef<HTMLDialogElement>(null);
 
