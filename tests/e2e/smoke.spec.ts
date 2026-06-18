@@ -28,8 +28,8 @@ import {
 import * as fs from 'fs';
 import * as path from 'path';
 
-const BASE_URL = process.env.BASE_URL ?? 'http://localhost:3000';
-const API_URL = process.env.BASE_API_URL ?? 'http://localhost:3001/api';
+const BASE_URL = process.env.BASE_URL ?? 'http://127.0.0.1:3000';
+const API_URL = process.env.BASE_API_URL ?? 'http://127.0.0.1:3001/api';
 
 // Auth state file — saved by Suite 1 beforeAll, reused by all steps
 const AUTH_FILE = path.join(__dirname, '../../playwright/.auth/mom.json');

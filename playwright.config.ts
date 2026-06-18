@@ -15,7 +15,7 @@ export default defineConfig({
     : [['list'], ['html', { outputFolder: 'playwright-report', open: 'never' }]],
 
   use: {
-    baseURL: process.env.BASE_URL ?? 'http://localhost:3000',
+    baseURL: process.env.BASE_URL ?? 'http://127.0.0.1:3000',
     extraHTTPHeaders: { Accept: 'application/json' },
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
@@ -31,7 +31,7 @@ export default defineConfig({
     : [
       {
         command: 'npm -w api run start:dev',   // ← fixed workspace syntax
-        url: 'http://localhost:3001/api/health',
+        url: 'http://127.0.0.1:3001/api/health',
         timeout: 60_000,
         reuseExistingServer: true,
         stdout: 'pipe',
@@ -40,7 +40,7 @@ export default defineConfig({
       },
       {
         command: 'npm -w web run dev',          // ← fixed workspace syntax
-        url: 'http://localhost:3000',
+        url: 'http://127.0.0.1:3000',
         timeout: 60_000,
         reuseExistingServer: true,
         stdout: 'pipe',
