@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from 'prisma/prisma.service';
 import { DoctorQueueService } from '../doctor-queue/doctor-queue.service';
 import { firstValueFrom } from 'rxjs';
@@ -95,7 +96,7 @@ export class ChatbotService {
       try {
         await this.prisma.chatMessage.update({
           where: { id: userMsg.id },
-          data: { extractedData: extracted },
+          data: { extractedData: extracted as Prisma.InputJsonValue },
         });
       } catch (dbErr) {
         this.logger.warn(
