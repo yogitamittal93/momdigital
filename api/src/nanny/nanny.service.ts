@@ -83,7 +83,8 @@ export class NannyService {
     });
 
     if (!active) {
-      const defaultName = helperType === 'nanny' ? 'Default Nanny' : 'Default Chef';
+      const defaultName =
+        helperType === 'nanny' ? 'Default Nanny' : 'Default Chef';
       active = await this.prisma.caregiver.create({
         data: {
           userId,
@@ -97,7 +98,10 @@ export class NannyService {
     } else {
       // Auto-reset check: If status is Verifying, and they missed yesterday's check-in
       if (active.lastCheckedIn && active.status === 'Verifying') {
-        const daysDiff = this.getCalendarDaysDiff(new Date(), new Date(active.lastCheckedIn));
+        const daysDiff = this.getCalendarDaysDiff(
+          new Date(),
+          new Date(active.lastCheckedIn),
+        );
         if (daysDiff > 1) {
           active = await this.prisma.caregiver.update({
             where: { id: active.id },
@@ -119,10 +123,7 @@ export class NannyService {
     // Return all caregivers of this type for the family, with currently assigned first
     return this.prisma.caregiver.findMany({
       where: { userId, helperType },
-      orderBy: [
-        { isAssigned: 'desc' },
-        { createdAt: 'desc' },
-      ],
+      orderBy: [{ isAssigned: 'desc' }, { createdAt: 'desc' }],
     });
   }
 
@@ -202,7 +203,10 @@ export class NannyService {
       if (!caregiver.lastCheckedIn) {
         newStreak = 1;
       } else {
-        const daysDiff = this.getCalendarDaysDiff(new Date(), new Date(caregiver.lastCheckedIn));
+        const daysDiff = this.getCalendarDaysDiff(
+          new Date(),
+          new Date(caregiver.lastCheckedIn),
+        );
         if (daysDiff === 1) {
           newStreak += 1;
         } else if (daysDiff > 1) {
@@ -214,7 +218,10 @@ export class NannyService {
       if (!caregiver.lastCheckedIn) {
         newStreak = 14;
       } else {
-        const daysDiff = this.getCalendarDaysDiff(new Date(), new Date(caregiver.lastCheckedIn));
+        const daysDiff = this.getCalendarDaysDiff(
+          new Date(),
+          new Date(caregiver.lastCheckedIn),
+        );
         if (daysDiff >= 1) {
           newStreak += 1;
         }

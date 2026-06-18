@@ -101,15 +101,17 @@ describe('Chatbot Safety Tests', () => {
 
     try {
       // 2. Spy on HttpService.post of ChatbotService to mock ML service response
-      const postSpy = jest.spyOn((chatbotService as any).httpService, 'post').mockImplementation(() => {
-        return of({
-          data: {
-            answer: 'Hello from mock RAG',
-            confidence: 'auto_safe',
-            sources: [],
-          },
-        } as any);
-      });
+      const postSpy = jest
+        .spyOn(chatbotService['httpService'], 'post')
+        .mockImplementation(() => {
+          return of({
+            data: {
+              answer: 'Hello from mock RAG',
+              confidence: 'auto_safe',
+              sources: [],
+            },
+          } as any);
+        });
 
       // 3. User B sends a chat message. This will write to chat_messages under userB.id.
       const resB = await request(app.getHttpServer())
@@ -137,17 +139,21 @@ describe('Chatbot Safety Tests', () => {
 
       // Let's find the call made for User A
       const userACall = queryCalls.find(
-        (call) => (call[1] as any).userId === userA.id,
+        (call) => (call[1] as { userId?: string }).userId === userA.id,
       );
       expect(userACall).toBeDefined();
 
-      const userAPayload = userACall![1] as any;
+      const userAPayload = userACall![1] as {
+        userId: string;
+        conversationHistory: { role: string; content: string }[];
+      };
       expect(userAPayload.conversationHistory).toBeDefined();
 
       // Assert that User B's message is NEVER in User A's conversation history payload
-      const hasUserBMessageInUserAHistory = userAPayload.conversationHistory.some(
-        (msg: any) => msg.content.includes('User B confidential'),
-      );
+      const hasUserBMessageInUserAHistory =
+        userAPayload.conversationHistory.some((msg) =>
+          msg.content.includes('User B confidential'),
+        );
       expect(hasUserBMessageInUserAHistory).toBe(false);
 
       postSpy.mockRestore();

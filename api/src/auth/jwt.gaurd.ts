@@ -34,7 +34,7 @@ export class JwtGuard implements CanActivate {
       testUserId &&
       this.configService.get<string>('NODE_ENV') !== 'production'
     ) {
-      request.user = { userId: testUserId } as any;
+      request.user = { userId: testUserId } as unknown as JwtPayload;
       return true;
     }
 
