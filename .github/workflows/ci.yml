@@ -88,6 +88,7 @@ jobs:
           NODE_ENV: test
           # Jest mocks PrismaService and RedisService — no real DB/Redis needed
           DATABASE_URL: postgresql://mock:mock@localhost:5432/mock
+          DIRECT_URL: postgresql://mock:mock@localhost:5432/mock
           JWT_ACCESS_SECRET: ci_access_secret_unit_test
           JWT_REFRESH_SECRET: ci_refresh_secret_unit_test
 
@@ -197,6 +198,7 @@ jobs:
         run: npx prisma migrate deploy
         env:
           DATABASE_URL: postgresql://mom_user:mom_password@localhost:5432/mom_digital_test?sslmode=disable
+          DIRECT_URL: postgresql://mom_user:mom_password@localhost:5432/mom_digital_test?sslmode=disable
 
       - name: Start API server (background)
         working-directory: api
@@ -207,6 +209,7 @@ jobs:
           NODE_ENV: test
           PORT: ${{ env.API_PORT }}
           DATABASE_URL: postgresql://mom_user:mom_password@localhost:5432/mom_digital_test?sslmode=disable
+          DIRECT_URL: postgresql://mom_user:mom_password@localhost:5432/mom_digital_test?sslmode=disable
           JWT_ACCESS_SECRET: ${{ secrets.JWT_ACCESS_SECRET || 'ci_access_secret_do_not_use_in_prod' }}
           JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET || 'ci_refresh_secret_do_not_use_in_prod' }}
           CLIENT_URL: http://localhost:${{ env.WEB_PORT }}
