@@ -137,6 +137,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         )}
         {children}
+
+        {/* Mobile footer for legal and support links */}
+        <footer className="md:hidden py-6 border-t border-border/40 px-6 text-center space-y-2 bg-card mt-8">
+          <div className="flex flex-wrap justify-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground font-semibold">
+            <Link href="/about" className="hover:text-primary transition-colors">About</Link>
+            <Link href="/contact" className="hover:text-primary transition-colors">Contact</Link>
+            <Link href="/support" className="hover:text-primary transition-colors">Support</Link>
+            <Link href="/privacy" className="hover:text-primary transition-colors">Privacy</Link>
+            <Link href="/terms" className="hover:text-primary transition-colors">Terms</Link>
+          </div>
+          <p className="text-[10px] text-muted-foreground/60">© {new Date().getFullYear()} MomDigital</p>
+        </footer>
       </main>
 
       {/* ── Mobile bottom nav ─────────────────────────────────────────── */}
@@ -273,6 +285,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </Link>
           </div>
         )}
+
+        {/* Utility / Legal Links */}
+        <div className="mt-8 pt-4 border-t border-border/50 px-4 space-y-2">
+          <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-[11px] text-muted-foreground font-medium">
+            <Link href="/about" className="hover:text-primary transition-colors">About</Link>
+            <Link href="/contact" className="hover:text-primary transition-colors">Contact</Link>
+            <Link href="/support" className="hover:text-primary transition-colors">Support</Link>
+            <Link href="/privacy" className="hover:text-primary transition-colors">Privacy</Link>
+            <Link href="/terms" className="hover:text-primary transition-colors">Terms</Link>
+          </div>
+          <p className="text-[9px] text-muted-foreground/60">© {new Date().getFullYear()} MomDigital</p>
+        </div>
       </nav>
 
       {/* Floating Chat Button for patients */}
