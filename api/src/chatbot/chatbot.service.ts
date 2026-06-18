@@ -95,10 +95,12 @@ export class ChatbotService {
       try {
         await this.prisma.chatMessage.update({
           where: { id: userMsg.id },
-          data: { extractedData: extracted as any },
+          data: { extractedData: extracted },
         });
       } catch (dbErr) {
-        this.logger.warn(`Failed to save extractedData to ChatMessage: ${dbErr.message}`);
+        this.logger.warn(
+          `Failed to save extractedData to ChatMessage: ${(dbErr as Error).message}`,
+        );
       }
 
       // 5. Validate extracted data (e.g. range of weight/height)
@@ -156,8 +158,21 @@ export class ChatbotService {
       if (!user) throw new NotFoundException('User not found');
 
       // 8. Hinglish & standard greetings detection
-      const cleanMessage = message.trim().toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "");
-      const greetings = ['hi', 'hello', 'hey', 'namaste', 'greetings', 'hola', 'hii', 'hiii', 'heyy'];
+      const cleanMessage = message
+        .trim()
+        .toLowerCase()
+        .replace(/[.,/#!$%^&*;:{}=\-_`~()?]/g, '');
+      const greetings = [
+        'hi',
+        'hello',
+        'hey',
+        'namaste',
+        'greetings',
+        'hola',
+        'hii',
+        'hiii',
+        'heyy',
+      ];
       const isGreeting = greetings.includes(cleanMessage);
 
       if (isGreeting) {
@@ -230,10 +245,10 @@ export class ChatbotService {
         confidence: 'auto_safe',
         sources: [],
       };
-
     } catch (error) {
       this.logger.error(`ML Service Error: ${(error as Error).message}`);
-      const fallbackReply = 'Amma is having a little trouble right now. Please try again later. For urgent concerns, call NHM helpline: 104.';
+      const fallbackReply =
+        'Amma is having a little trouble right now. Please try again later. For urgent concerns, call NHM helpline: 104.';
       try {
         await this.prisma.chatMessage.create({
           data: {
@@ -242,7 +257,9 @@ export class ChatbotService {
             content: fallbackReply,
           },
         });
-      } catch {}
+      } catch {
+        // Ignore fallback message creation errors
+      }
       return {
         reply: fallbackReply,
         confidence: 'requires_doctor',
@@ -721,7 +738,10 @@ export class ChatbotService {
         const msDiff = due.getTime() - today.getTime();
         const daysDiff = Math.ceil(msDiff / (1000 * 60 * 60 * 24));
         const weeksRemaining = daysDiff / 7;
-        pregnancyWeek = Math.max(1, Math.min(42, Math.round(40 - weeksRemaining)));
+        pregnancyWeek = Math.max(
+          1,
+          Math.min(42, Math.round(40 - weeksRemaining)),
+        );
       }
 
       // Calculate baby age in months from user.babyBirthDate
@@ -729,20 +749,37 @@ export class ChatbotService {
       if (!babyAgeMonths && user.babyBirthDate) {
         const today = new Date();
         const birth = new Date(user.babyBirthDate);
-        const months = (today.getFullYear() - birth.getFullYear()) * 12 + (today.getMonth() - birth.getMonth());
+        const months =
+          (today.getFullYear() - birth.getFullYear()) * 12 +
+          (today.getMonth() - birth.getMonth());
         babyAgeMonths = Math.max(0, months);
       }
 
       // Calculate if profile is complete for health guidance (week/age + vitals)
       const vitals = await this.userHasVitals(userId, extracted, user);
       const hasVitals = vitals.hasWeight && vitals.hasHeight;
-      const hasStage = user.dueDate || user.babyBirthDate || extracted.pregnancyWeek || extracted.babyAgeMonths;
-      const profileComplete = Boolean(user.name && !user.name.toLowerCase().includes('guest') && hasStage && hasVitals);
+      const hasStage =
+        user.dueDate ||
+        user.babyBirthDate ||
+        extracted.pregnancyWeek ||
+        extracted.babyAgeMonths;
+      const profileComplete = Boolean(
+        user.name &&
+        !user.name.toLowerCase().includes('guest') &&
+        hasStage &&
+        hasVitals,
+      );
 
       // List what key fields are missing
       const missingFields: string[] = [];
-      if (!user.name || user.name.toLowerCase().includes('guest')) missingFields.push('name');
-      if (!user.dueDate && !extracted.pregnancyWeek && !user.babyBirthDate && !extracted.babyAgeMonths) {
+      if (!user.name || user.name.toLowerCase().includes('guest'))
+        missingFields.push('name');
+      if (
+        !user.dueDate &&
+        !extracted.pregnancyWeek &&
+        !user.babyBirthDate &&
+        !extracted.babyAgeMonths
+      ) {
         missingFields.push('pregnancyWeekOrBabyAge');
       }
       if (!vitals.hasWeight) missingFields.push('weight');
