@@ -197,8 +197,8 @@ jobs:
         working-directory: api
         run: npx prisma migrate deploy
         env:
-          DATABASE_URL: postgresql://mom_user:mom_password@localhost:5432/mom_digital_test?sslmode=disable
-          DIRECT_URL: postgresql://mom_user:mom_password@localhost:5432/mom_digital_test?sslmode=disable
+          DATABASE_URL: postgresql://mom_user:mom_password@127.0.0.1:5432/mom_digital_test?sslmode=disable
+          DIRECT_URL: postgresql://mom_user:mom_password@127.0.0.1:5432/mom_digital_test?sslmode=disable
 
       - name: Start API server (background)
         working-directory: api
@@ -208,13 +208,13 @@ jobs:
         env:
           NODE_ENV: test
           PORT: ${{ env.API_PORT }}
-          DATABASE_URL: postgresql://mom_user:mom_password@localhost:5432/mom_digital_test?sslmode=disable
-          DIRECT_URL: postgresql://mom_user:mom_password@localhost:5432/mom_digital_test?sslmode=disable
+          DATABASE_URL: postgresql://mom_user:mom_password@127.0.0.1:5432/mom_digital_test?sslmode=disable
+          DIRECT_URL: postgresql://mom_user:mom_password@127.0.0.1:5432/mom_digital_test?sslmode=disable
           JWT_ACCESS_SECRET: ${{ secrets.JWT_ACCESS_SECRET || 'ci_access_secret_do_not_use_in_prod' }}
           JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET || 'ci_refresh_secret_do_not_use_in_prod' }}
-          CLIENT_URL: http://localhost:${{ env.WEB_PORT }}
-          CLIENT_URLS: http://localhost:${{ env.WEB_PORT }}
-          REDIS_URL: redis://localhost:6379
+          CLIENT_URL: http://127.0.0.1:${{ env.WEB_PORT }}
+          CLIENT_URLS: http://127.0.0.1:${{ env.WEB_PORT }}
+          REDIS_URL: redis://127.0.0.1:6379
           # ML_SERVICE_URL intentionally omitted — chatbot E2E tests are skipped in CI
           # (ML service requires ChromaDB population from HF Hub, not feasible in CI)
           ML_SERVICE_URL: ''
@@ -224,7 +224,7 @@ jobs:
         run: |
           echo "Waiting for API on port ${{ env.API_PORT }}..."
           for i in $(seq 1 30); do
-            if curl -sf http://localhost:${{ env.API_PORT }}/api/health > /dev/null 2>&1; then
+            if curl -sf http://127.0.0.1:${{ env.API_PORT }}/api/health > /dev/null 2>&1; then
               echo "API is up!"
               break
             fi
@@ -239,13 +239,13 @@ jobs:
           echo "WEB_PID=$!" >> $GITHUB_ENV
         env:
           NODE_ENV: production
-          NEXT_PUBLIC_API_URL: http://localhost:${{ env.API_PORT }}/api
+          NEXT_PUBLIC_API_URL: http://127.0.0.1:${{ env.API_PORT }}/api
 
       - name: Wait for Next.js to be ready
         run: |
           echo "Waiting for Next.js on port ${{ env.WEB_PORT }}..."
           for i in $(seq 1 30); do
-            if curl -sf http://localhost:${{ env.WEB_PORT }} > /dev/null 2>&1; then
+            if curl -sf http://127.0.0.1:${{ env.WEB_PORT }} > /dev/null 2>&1; then
               echo "Next.js is up!"
               break
             fi
@@ -256,8 +256,8 @@ jobs:
       - name: Run Playwright smoke tests
         run: npx playwright test tests/e2e/smoke.spec.ts --reporter=list,junit
         env:
-          BASE_URL: http://localhost:${{ env.WEB_PORT }}
-          BASE_API_URL: http://localhost:${{ env.API_PORT }}/api
+          BASE_URL: http://127.0.0.1:${{ env.WEB_PORT }}
+          BASE_API_URL: http://127.0.0.1:${{ env.API_PORT }}/api
           CI: 'true'
 
       - name: Upload Playwright report
