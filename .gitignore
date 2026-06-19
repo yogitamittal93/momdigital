@@ -44,6 +44,11 @@ ml_service/**/*.py[cod]
 ml_service/*.log
 ml_service/matrny_db/
 
+# --- Playwright ---
+test-results/
+playwright-report/
+playwright/.auth/
+
 # --- IDE & System ---
 .idea/
 .vscode/
