@@ -289,6 +289,12 @@ jobs:
           BASE_API_URL: http://127.0.0.1:${{ env.API_PORT }}/api
           CI: 'true'
 
+      - name: Print API logs on failure
+        if: failure()
+        run: |
+          echo "=== API Server Logs ==="
+          cat api_server.log || echo "No api_server.log found"
+
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v4
