@@ -217,7 +217,7 @@ jobs:
         working-directory: api
         run: npx prisma migrate deploy
         env:
-          DATABASE_URL: postgresql://mom_user:mom_password@127.0.0.1:5432/mom_digital_test?sslmode=disable
+          DATABASE_URL: postgresql://mom_user:mom_password@127.0.0.1:5432/mom_digital_test?sslmode=disable&connection_limit=5&pool_timeout=30
           DIRECT_URL: postgresql://mom_user:mom_password@127.0.0.1:5432/mom_digital_test?sslmode=disable
 
       - name: Start API server (background)
@@ -228,7 +228,7 @@ jobs:
         env:
           NODE_ENV: test
           PORT: ${{ env.API_PORT }}
-          DATABASE_URL: postgresql://mom_user:mom_password@127.0.0.1:5432/mom_digital_test?sslmode=disable
+          DATABASE_URL: postgresql://mom_user:mom_password@127.0.0.1:5432/mom_digital_test?sslmode=disable&connection_limit=5&pool_timeout=30
           DIRECT_URL: postgresql://mom_user:mom_password@127.0.0.1:5432/mom_digital_test?sslmode=disable
           JWT_ACCESS_SECRET: ${{ secrets.JWT_ACCESS_SECRET || 'ci_access_secret_do_not_use_in_prod' }}
           JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET || 'ci_refresh_secret_do_not_use_in_prod' }}
