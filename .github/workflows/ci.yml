@@ -191,6 +191,13 @@ jobs:
       - name: Install all workspace dependencies
         run: npm ci
 
+      - name: Generate Prisma client (required after npm ci in e2e job)
+        working-directory: api
+        run: npx prisma generate
+        env:
+          DATABASE_URL: postgresql://mom_user:mom_password@127.0.0.1:5432/mom_digital_test?sslmode=disable
+          DIRECT_URL: postgresql://mom_user:mom_password@127.0.0.1:5432/mom_digital_test?sslmode=disable
+
       - name: Install Playwright browsers (Chromium only for speed)
         run: npx playwright install chromium --with-deps
 
