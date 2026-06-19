@@ -66,6 +66,7 @@ jobs:
           name: web-next
           path: web/.next
           retention-days: 1
+          include-hidden-files: true
 
 # ─────────────────────────────────────────────────────────────────────────────
 # JOB 2: API Unit Tests (Jest)
