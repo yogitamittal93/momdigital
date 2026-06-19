@@ -244,6 +244,10 @@ jobs:
       - name: Start Next.js server (background, reuse build artifact)
         working-directory: web
         run: |
+          echo "=== Directory contents of web/ ==="
+          ls -la
+          echo "=== Directory contents of web/.next/ ==="
+          ls -la .next || echo ".next directory not found!"
           npm run start > ../web_server.log 2>&1 &
           echo "WEB_PID=$!" >> $GITHUB_ENV
         env:
