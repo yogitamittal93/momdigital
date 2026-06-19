@@ -244,7 +244,7 @@ jobs:
       - name: Start Next.js server (background, reuse build artifact)
         working-directory: web
         run: |
-          npm run start &
+          npm run start > ../web_server.log 2>&1 &
           echo "WEB_PID=$!" >> $GITHUB_ENV
         env:
           NODE_ENV: production
@@ -261,7 +261,8 @@ jobs:
             echo "  attempt $i/30 — waiting 2s..."
             sleep 2
           done
-          echo "Next.js failed to start!"
+          echo "Next.js failed to start! Printing server logs:"
+          cat web_server.log
           exit 1
 
       - name: Run Playwright smoke tests
