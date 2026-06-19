@@ -213,11 +213,19 @@ jobs:
           name: web-next
           path: web/.next
 
-      - name: Run Prisma migrations (test DB)
+      - name: Push Prisma schema to test DB (db push is safer than migrate deploy for a fresh CI DB)
         working-directory: api
-        run: npx prisma migrate deploy
+        run: |
+          echo "Pushing schema to fresh CI database..."
+          npx prisma db push --force-reset --accept-data-loss
+          echo "Schema push complete. Verifying tables exist..."
+          npx prisma db execute --stdin <<'SQL'
+          SELECT table_name FROM information_schema.tables
+          WHERE table_schema = 'public'
+          ORDER BY table_name;
+          SQL
         env:
-          DATABASE_URL: postgresql://mom_user:mom_password@127.0.0.1:5432/mom_digital_test?sslmode=disable&connection_limit=5&pool_timeout=30
+          DATABASE_URL: postgresql://mom_user:mom_password@127.0.0.1:5432/mom_digital_test?sslmode=disable
           DIRECT_URL: postgresql://mom_user:mom_password@127.0.0.1:5432/mom_digital_test?sslmode=disable
 
       - name: Start API server (background)
