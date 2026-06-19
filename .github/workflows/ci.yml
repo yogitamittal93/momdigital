@@ -203,7 +203,7 @@ jobs:
       - name: Start API server (background)
         working-directory: api
         run: |
-          node dist/src/main.js &
+          node dist/src/main.js > ../api_server.log 2>&1 &
           echo "API_PID=$!" >> $GITHUB_ENV
         env:
           NODE_ENV: test
@@ -231,7 +231,8 @@ jobs:
             echo "  attempt $i/30 — waiting 2s..."
             sleep 2
           done
-          echo "API failed to start!"
+          echo "API failed to start! Printing server logs:"
+          cat api_server.log
           exit 1
 
       - name: Start Next.js server (background, reuse build artifact)
