@@ -261,6 +261,32 @@ jobs:
           cat api_server.log
           exit 1
 
+      - name: Print API startup logs (always — helps diagnose 500s)
+        if: always()
+        run: |
+          echo "=== API Server Logs (first 80 lines) ==="
+          head -n 80 api_server.log || echo "No api_server.log found"
+
+      - name: Probe API DB connectivity before Playwright
+        run: |
+          echo "--- Probing POST /api/auth/register ---"
+          curl -s -o /tmp/reg_body.json -w "HTTP %{http_code}" \
+            -X POST http://127.0.0.1:${{ env.API_PORT }}/api/auth/register \
+            -H "Content-Type: application/json" \
+            -d '{"email":"probe@ci.test","password":"Probe@1234!","name":"CI Probe","dueDate":"2026-12-01"}' \
+            || true
+          echo ""
+          echo "Response body:"
+          cat /tmp/reg_body.json || true
+          echo ""
+          echo "--- Probing POST /api/auth/login (wrong creds) ---"
+          curl -s -w "HTTP %{http_code}" \
+            -X POST http://127.0.0.1:${{ env.API_PORT }}/api/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{"email":"probe@ci.test","password":"wrong"}' \
+            || true
+          echo ""
+
       - name: Start Next.js server (background, reuse build artifact)
         working-directory: web
         run: |
@@ -296,10 +322,10 @@ jobs:
           BASE_API_URL: http://127.0.0.1:${{ env.API_PORT }}/api
           CI: 'true'
 
-      - name: Print API logs on failure
-        if: failure()
+      - name: Print API logs (always)
+        if: always()
         run: |
-          echo "=== API Server Logs ==="
+          echo "=== Full API Server Logs ==="
           cat api_server.log || echo "No api_server.log found"
 
       - name: Upload Playwright report
