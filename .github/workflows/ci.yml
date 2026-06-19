@@ -203,7 +203,7 @@ jobs:
       - name: Start API server (background)
         working-directory: api
         run: |
-          node dist/main.js &
+          node dist/src/main.js &
           echo "API_PID=$!" >> $GITHUB_ENV
         env:
           NODE_ENV: test

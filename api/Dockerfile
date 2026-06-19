@@ -38,4 +38,4 @@ USER appuser
 EXPOSE 3001
 
 # Production start — NOT start:dev
-CMD ["node", "dist/main.js"]
+CMD ["node", "dist/src/main.js"]
