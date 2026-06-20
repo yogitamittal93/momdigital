@@ -50,14 +50,12 @@ def _ensure_db_downloaded():
     except Exception as e:
         logger.error(
             "Failed to download matrny_db/ from Hugging Face: %s\n"
-            "Start the server manually after running: python ingest.py",
+            "The service will start with an empty ChromaDB. "
+            "Run `python ingest.py` to build the knowledge base.",
             e,
         )
-        raise RuntimeError(
-            f"Cannot start without a ChromaDB. "
-            f"Either run `python ingest.py` locally or set HF_REPO_ID correctly. "
-            f"Error: {e}"
-        )
+        # DO NOT raise — let the service start with empty DB.
+        # Health endpoint returns 200 with degraded status (handled in main.py).
 
 
 def get_model():
