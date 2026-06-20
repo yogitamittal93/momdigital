@@ -22,6 +22,12 @@ FROM node:22-alpine AS runner
 
 WORKDIR /app
 
+# Prisma's runtime OpenSSL-detection script is unreliable on this Alpine base
+# and keeps resolving to the legacy "linux-musl" target (which needs
+# libssl.so.1.1 — removed from Alpine years ago). Setting this env var makes
+# Prisma load the exact engine file directly, skipping detection entirely.
+ENV PRISMA_QUERY_ENGINE_LIBRARY=/app/node_modules/.prisma/client/libquery_engine-linux-musl-openssl-3.0.x.so.node
+
 # Only install production dependencies in the final image
 COPY package*.json ./
 RUN npm install --omit=dev
