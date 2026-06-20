@@ -126,25 +126,25 @@ def query():
 
 @app.route("/health", methods=["GET"])
 def health():
+    chroma_ok = False
+    count = 0
+    chroma_error = None
+
     try:
         collection = get_collection()
         count = collection.count()
         chroma_ok = count > 0
     except Exception as e:
-        logger.error("Health check database query failed: %s", e)
-        chroma_ok = False
-        count = 0
+        logger.warning("Health check: ChromaDB not ready: %s", e)
+        chroma_error = str(e)
 
-    if not chroma_ok:
-        return jsonify({
-            "status": "degraded",
-            "error": "ChromaDB collection is empty or unreachable.",
-            "chunks_indexed": count
-        }), 503
-
+    # Always return 200 — service is alive regardless of ChromaDB state.
+    # ChromaDB empty = data not ingested yet, not a fatal error.
     return jsonify({
-        "status": "ok",
+        "status": "ok" if chroma_ok else "degraded",
         "chunks_indexed": count,
+        "chroma_ready": chroma_ok,
+        "chroma_error": chroma_error,
         "version": "1.0.0"
     }), 200
 
