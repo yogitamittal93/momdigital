@@ -1,5 +1,5 @@
 [build]
-dockerfile = "Dockerfile"
+dockerfilePath = "ml_service/Dockerfile"
 
 [deploy]
 healthcheckPath = "/health"
