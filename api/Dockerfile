@@ -22,11 +22,6 @@ FROM node:22-alpine AS runner
 
 WORKDIR /app
 
-# Prisma's query engine (v5.22.0) is built against OpenSSL 1.1.x (libssl.so.1.1).
-# node:22-alpine ships OpenSSL 3.x only, so without this the engine binary
-# fails to load and the process crashes before it can bind a port.
-RUN apk add --no-cache openssl1.1-compat
-
 # Only install production dependencies in the final image
 COPY package*.json ./
 RUN npm install --omit=dev
