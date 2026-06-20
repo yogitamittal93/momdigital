@@ -1,5 +1,7 @@
 # api/Dockerfile
 # Multi-stage build — keeps the final image lean (~200MB vs ~600MB single-stage)
+# Note: This is part of an npm workspace monorepo. The root package-lock.json
+# is not available when the build context is api/ — so we use npm install.
 
 # ── Stage 1: Build ────────────────────────────────────────────────────────────
 FROM node:22-alpine AS builder
@@ -8,7 +10,7 @@ WORKDIR /app
 
 # Copy manifests first so Docker cache is reused when only source changes
 COPY package*.json ./
-RUN npm ci --frozen-lockfile
+RUN npm install
 
 # Copy source and generate Prisma client for the Linux target
 COPY . .
@@ -22,7 +24,7 @@ WORKDIR /app
 
 # Only install production dependencies in the final image
 COPY package*.json ./
-RUN npm ci --frozen-lockfile --omit=dev
+RUN npm install --omit=dev
 
 # Copy compiled output and Prisma artefacts from builder
 COPY --from=builder /app/dist ./dist
