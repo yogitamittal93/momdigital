@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { ProSidebar } from "./pro-sidebar";
 import {
   CheckCircle, Flag, MessageSquare, Star,
@@ -235,6 +236,7 @@ function AssignmentRow({ item, onAction }: { item: QueueItem; onAction: () => vo
 }
 
 export default function ProDashboardPage() {
+  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
   const [queue, setQueue] = useState<QueueItem[]>([]);
@@ -248,11 +250,18 @@ export default function ProDashboardPage() {
         fetch(`${API}/content-requests/stats`, { credentials: "include" }),
         fetch(`${API}/content-requests/queue`, { credentials: "include" }),
       ]);
-      if (meRes.ok) { const d = await meRes.json(); setUser(d.user); }
+      // No middleware cookie-gate protects this route (see middleware.ts —
+      // the API's auth cookie lives on a different domain and isn't visible
+      // to frontend middleware), so this client-side check is the only guard.
+      if (!meRes.ok) {
+        router.replace("/pro/login");
+        return;
+      }
+      const d = await meRes.json(); setUser(d.user);
       if (statsRes.ok) { setStats(await statsRes.json()); }
       if (queueRes.ok) { setQueue(await queueRes.json()); }
     } finally { setLoading(false); }
-  }, []);
+  }, [router]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 

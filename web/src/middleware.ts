@@ -1,100 +1,29 @@
 import { NextResponse, NextRequest } from "next/server";
 
-// Routes that only an authenticated user (mother OR expert) can access
-const MOTHER_PROTECTED = [
-  "/chat",
-  "/dashboard",
-  "/pregnancy",
-  "/appointments",
-  "/postpartum",
-  "/childcare",
-  "/community",
-  "/affirmations",
-  "/trusted-help",
-  "/career",
-  "/recovery",
-  "/medical-records",
-  "/profile",
-];
+// NOTE: This middleware previously gated MOTHER_PROTECTED and /pro routes by
+// checking for an `access_token` cookie directly via req.cookies.get(...).
+// That check has been removed: the cookie is set by the API on a different
+// domain (Railway) than this frontend (momdigital.live), so the browser
+// never sends it to requests made to this domain — middleware running here
+// could never see it, even for a fully logged-in user. This caused every
+// login to bounce back to /login regardless of browser or auth provider.
+//
+// Auth gating now happens client-side in AppShell (see
+// components/layout/app-shell.tsx), which checks the result of a direct
+// cross-origin /me request to the API instead. That request works because
+// it's a normal credentialed fetch covered by CORS, not a same-origin
+// cookie read.
+//
+// TODO: A same-origin reverse proxy (API and frontend served from the same
+// registrable domain) would let the cookie be visible here again, restoring
+// the security benefit of server-side gating. Plain Next.js `rewrites()`
+// can't do this — it drops Set-Cookie headers from proxied responses — so
+// this needs real middleware-based proxying. Tracked for later.
 
-// Auth pages for mothers (redirect away if already logged in)
-const MOTHER_AUTH_PAGES = ["/login", "/register"];
-
-// Pro auth pages (redirect away if already logged in as expert)
-const PRO_AUTH_PAGES = ["/pro/login", "/pro/register"];
-
-export function middleware(req: NextRequest) {
-  const token = req.cookies.get("access_token")?.value;
-  const url = req.nextUrl.pathname;
-
-  // ─── Mother auth-page guard ────────────────────────────────────────────────
-  const isMotherAuthPage = MOTHER_AUTH_PAGES.some((p) => url.startsWith(p));
-  const isMotherProtected = MOTHER_PROTECTED.some((p) => url.startsWith(p));
-
-  if (!token && isMotherProtected) {
-    return NextResponse.redirect(new URL("/login", req.url));
-  }
-  if (token && isMotherAuthPage) {
-    return NextResponse.redirect(new URL("/dashboard", req.url));
-  }
-
-  // ─── Pro route group guard ─────────────────────────────────────────────────
-  const isPro = url.startsWith("/pro");
-  const isProAuthPage = PRO_AUTH_PAGES.some((p) => url.startsWith(p));
-  const isProApp = isPro && !isProAuthPage; // /pro, /pro/queue, /pro/content …
-
-  if (isProApp && !token) {
-    // Not logged in → send to pro login
-    return NextResponse.redirect(new URL("/pro/login", req.url));
-  }
-
-  if (token && isProAuthPage) {
-    // Already logged in, don't show login/register again
-    return NextResponse.redirect(new URL("/pro", req.url));
-  }
-
-  // Note: role verification (MOTHER trying to access /pro) is intentionally
-  // handled server-side by the page component + API RBAC rather than in the
-  // middleware, because the JWT payload is HttpOnly-cookie-only and cannot
-  // be decoded safely on the edge without the secret. The API returns 403 for
-  // mothers, and the page redirects to /dashboard on load.
-
+export function middleware(_req: NextRequest) {
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: [
-    // Mother routes
-    "/chat",
-    "/chat/:path*",
-    "/dashboard",
-    "/dashboard/:path*",
-    "/pregnancy",
-    "/pregnancy/:path*",
-    "/appointments",
-    "/appointments/:path*",
-    "/postpartum",
-    "/postpartum/:path*",
-    "/childcare",
-    "/childcare/:path*",
-    "/community",
-    "/community/:path*",
-    "/affirmations",
-    "/affirmations/:path*",
-    "/trusted-help",
-    "/trusted-help/:path*",
-    "/career",
-    "/career/:path*",
-    "/recovery",
-    "/recovery/:path*",
-    "/medical-records",
-    "/medical-records/:path*",
-    "/profile",
-    "/profile/:path*",
-    "/login",
-    "/register",
-    // Pro routes
-    "/pro/:path*",
-    "/pro",
-  ],
+  matcher: [],
 };

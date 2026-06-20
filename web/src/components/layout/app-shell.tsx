@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect } from "react";
 import {
   Baby,
   Briefcase,
@@ -99,7 +100,21 @@ const rolePretty: Record<string, string> = {
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { user } = useUserProfileContext();
+  const router = useRouter();
+  const { user, loading, error } = useUserProfileContext();
+
+  // Client-side auth guard. The middleware used to check for an access_token
+  // cookie directly, but that cookie is set by the API on a different domain
+  // (Railway) than the frontend (momdigital.live) — the browser never sends
+  // it to Next.js middleware running on the frontend's own domain, so that
+  // check was always failing even for successfully logged-in users. The /me
+  // request itself works fine (it's a direct cross-origin fetch with
+  // credentials, covered by CORS), so we gate on its result here instead.
+  useEffect(() => {
+    if (!loading && !user && error) {
+      router.replace("/login");
+    }
+  }, [loading, user, error, router]);
 
   const role = user?.role ?? "MOTHER";
   const isExpert = isExpertRole(role);
@@ -109,9 +124,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // Which nav list to render
   const navItems = isExpert
     ? expertNavItems.filter((item) => {
-        if (!("roles" in item) || !item.roles) return true;
-        return item.roles.includes(role);
-      })
+      if (!("roles" in item) || !item.roles) return true;
+      return item.roles.includes(role);
+    })
     : motherNavItems;
 
   const secondaryItems = isExpert ? [] : motherSecondaryItems;
@@ -161,11 +176,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <Link
                 key={item.path}
                 href={item.path}
-                className={`flex flex-col items-center gap-1 px-3 py-2 rounded-2xl transition-all ${
-                  active
+                className={`flex flex-col items-center gap-1 px-3 py-2 rounded-2xl transition-all ${active
                     ? "bg-primary/10 text-primary"
                     : "text-muted-foreground hover:text-foreground"
-                }`}
+                  }`}
               >
                 <Icon className={`w-5 h-5 ${active ? "stroke-[2.5]" : ""}`} />
                 <span className="text-[10px]">{item.label}</span>
@@ -233,11 +247,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <Link
                 key={item.path}
                 href={item.path}
-                className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all ${
-                  active
+                className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all ${active
                     ? "bg-primary text-primary-foreground shadow-md"
                     : "text-foreground hover:bg-muted"
-                }`}
+                  }`}
               >
                 <Icon className="w-5 h-5" />
                 <span>{item.label}</span>
@@ -259,11 +272,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 <Link
                   key={item.path}
                   href={item.path}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all ${
-                    active
+                  className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all ${active
                       ? "bg-primary text-primary-foreground shadow-md"
                       : "text-foreground hover:bg-muted"
-                  }`}
+                    }`}
                 >
                   <Icon className="w-5 h-5" />
                   <span>{item.label}</span>
