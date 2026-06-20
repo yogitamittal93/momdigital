@@ -385,14 +385,25 @@ jobs:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
       # ── Backend: Railway ────────────────────────────────────────────────────
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
       - name: Deploy API (NestJS) → Railway
+        working-directory: api
         run: |
-          npm install -g @railway/cli --prefer-offline 2>/dev/null || npm install -g @railway/cli
+          echo "Deploying API service to Railway..."
           railway up --service api --detach
+          echo "API deploy triggered successfully"
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
 
-      - name: Deploy ML Service (FastAPI) → Railway
-        run: railway up --service ml-service --detach
+      - name: Deploy ML Service (Python) → Railway
+        working-directory: ml_service
+        run: |
+          echo "Deploying ML service to Railway..."
+          railway up --service ml-service --detach
+          echo "ML service deploy triggered successfully"
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
