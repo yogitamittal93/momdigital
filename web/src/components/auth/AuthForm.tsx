@@ -41,7 +41,13 @@ const signupSchema = z
 // ── OAuth buttons ─────────────────────────────────────────────────────────────
 
 function OAuthButtons() {
-  const apiBase = getApiBase().replace("/api", ""); // e.g. http://localhost:3001
+  // Strip a trailing "/api" only — using .replace("/api", "") here previously
+  // matched the FIRST "/api" substring anywhere in the URL, which incorrectly
+  // ate the "//" right after "https:" when the hostname itself starts with
+  // "api-..." (e.g. https://api-production-...up.railway.app/api became
+  // https:/-production-...up.railway.app/api). Anchoring to the end with
+  // a regex fixes this.
+  const apiBase = getApiBase().replace(/\/api\/?$/, ""); // e.g. http://localhost:3001
 
   return (
     <div className="space-y-3">
