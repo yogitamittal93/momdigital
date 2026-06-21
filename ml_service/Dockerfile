@@ -25,6 +25,14 @@ COPY . .
 # adduser --system leaves HOME unset/unwritable, which breaks libraries
 # (HF/transformers, matplotlib, etc.) that try to write caches under ~/.cache.
 RUN addgroup --system appgroup && adduser --system --home /tmp --ingroup appgroup appuser
+
+# /app (including matrny_db/, created at startup by the Hugging Face
+# download step) was copied in as root and is unwritable by appuser without
+# this — the embeddings module would otherwise fail with "Permission denied"
+# trying to create matrny_db/, silently fall back to an empty ChromaDB, and
+# every RAG query would return no context.
+RUN chown -R appuser:appgroup /app
+
 USER appuser
 
 # No EXPOSE for a fixed port — Railway assigns $PORT dynamically at runtime,

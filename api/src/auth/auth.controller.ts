@@ -248,7 +248,65 @@ export class AuthController {
     return this.authService.registerExpert(dto, credentialUrl);
   }
 
+  // ─── Avatar Upload ─────────────────────────────────────────────────────────
+
+  @Post('avatar')
+  @UseGuards(JwtGuard)
+  @UseInterceptors(
+    FileInterceptor('avatar', {
+      limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB max
+    }),
+  )
+  async uploadAvatar(
+    @Req() req: Request & { user: JwtPayload },
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    if (!file) {
+      return { message: 'No file provided.' };
+    }
+    const allowed = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+    if (!allowed.has(file.mimetype)) {
+      return { message: 'Only JPEG, PNG, WEBP, and GIF are allowed.' };
+    }
+
+    const uploadDir = this.configService.get<string>('AVATAR_UPLOAD_DIR') ?? 'uploads/avatars';
+    await mkdir(uploadDir, { recursive: true });
+    const ext = file.originalname.split('.').pop()?.toLowerCase() ?? 'jpg';
+    const filename = `${req.user.userId}-${randomUUID()}.${ext}`;
+    await writeFile(join(uploadDir, filename), file.buffer);
+
+    const profileImageUrl = `/uploads/avatars/${filename}`;
+    await this.prisma.user.update({
+      where: { id: req.user.userId },
+      data: { profileImage: profileImageUrl },
+    });
+    await this.authService.invalidateProfileCache(req.user.userId);
+
+    return { profileImageUrl };
+  }
+
   // ─── Admin: Expert Approval ───────────────────────────────────────────────
+
+  @Get('admin/experts')
+  @UseGuards(JwtGuard, AdminGuard)
+  async listExperts() {
+    const experts = await this.prisma.user.findMany({
+      where: {
+        role: { not: 'MOTHER' },
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        expertStatus: true,
+        specialization: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    return { experts };
+  }
 
   @Patch('admin/experts/:expertId/approve')
   @UseGuards(JwtGuard, AdminGuard)

@@ -54,6 +54,11 @@ export class AuthService {
     return `auth:profile:${userId}`;
   }
 
+  async invalidateProfileCache(userId: string) {
+    await this.redisService.del(this.profileCacheKey(userId));
+  }
+
+
   async getUserProfile(userId: string) {
     const cacheKey = this.profileCacheKey(userId);
     const cached = await this.redisService.get<{ user: unknown }>(cacheKey);

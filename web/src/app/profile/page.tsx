@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Bell, Briefcase, Heart, LogOut, Moon, Pen, Shield, Star, User, MessageSquare } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Bell, Briefcase, Camera, Heart, LogOut, Moon, Pen, Shield, Star, User, MessageSquare } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AppShell from "@/components/layout/app-shell";
@@ -13,7 +13,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 // ChatWindow removed (relocated to dedicated /chat route)
 import { fetchMe, ApiUser } from "@/lib/api-client";
-import { updateProfile } from "@/services/auth.service";
+import { updateProfile, uploadAvatar } from "@/services/auth.service";
 
 // ─── Role helpers ─────────────────────────────────────────────────────────────
 
@@ -77,6 +77,23 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Avatar upload state
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Edit form state
+  const [isEditing, setIsEditing] = useState(false);
+  const [formState, setFormState] = useState({
+    name: "",
+    dueDate: "",
+    babyBirthDate: "",
+    specialization: "",
+    externalLink: "",
+    whatsappNumber: "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
   useEffect(() => {
     fetchMe()
       .then((user) => {
@@ -107,23 +124,29 @@ export default function ProfilePage() {
   const isExpert = EXPERT_ROLES.includes(profile?.role ?? "");
   const isMother = !isExpert;
 
-  // ── Edit form state ─────────────────────────────────────────────────────────
-  const [isEditing, setIsEditing] = useState(false);
-  const [formState, setFormState] = useState({
-    name: "",
-    // Mother fields
-    dueDate: "",
-    babyBirthDate: "",
-    // Expert fields
-    specialization: "",
-    externalLink: "",
-    whatsappNumber: "",
-  });
-  const [saving, setSaving] = useState(false);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-
   const pregnancyText = useMemo(() => getPregnancyStatus(profile), [profile]);
 
+  // ── Avatar upload ──────────────────────────────────────────────────────────
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvatarUploading(true);
+    setError(null);
+    try {
+      const { profileImageUrl } = await uploadAvatar(file);
+      setProfile((prev) =>
+        prev ? { ...prev, profileImage: profileImageUrl, avatarUrl: profileImageUrl } : prev
+      );
+      setSuccessMessage("Profile photo updated!");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to upload photo.");
+    } finally {
+      setAvatarUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  // ── Edit form handlers ────────────────────────────────────────────────────
   const openEditForm = () => {
     setFormState({
       name: profile?.name ?? "",
@@ -143,7 +166,6 @@ export default function ProfilePage() {
     setSaving(true);
     setError(null);
     try {
-      // Build payload based on role
       const payload: Record<string, string | undefined> = {
         name: formState.name.trim() || undefined,
       };
@@ -191,12 +213,39 @@ export default function ProfilePage() {
             )}
             <Card className="rounded-3xl border-none shadow-lg p-6 -mb-12">
               <div className="flex items-center gap-4">
-                <Avatar className="w-20 h-20">
-                  {profile?.avatarUrl ? (
-                    <AvatarImage src={profile.avatarUrl} alt={profile.name ?? "profile"} />
-                  ) : null}
-                  <AvatarFallback>{initials}</AvatarFallback>
-                </Avatar>
+                {/* Clickable avatar with camera overlay */}
+                <div className="relative shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={avatarUploading}
+                    className="relative w-20 h-20 rounded-full focus:outline-none focus:ring-2 focus:ring-primary group"
+                    aria-label="Change profile photo"
+                  >
+                    <Avatar className="w-20 h-20">
+                      {(profile?.profileImage ?? profile?.avatarUrl) ? (
+                        <AvatarImage
+                          src={profile!.profileImage ?? profile!.avatarUrl ?? ""}
+                          alt={profile!.name ?? "profile"}
+                        />
+                      ) : null}
+                      <AvatarFallback>{initials}</AvatarFallback>
+                    </Avatar>
+                    <span className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      {avatarUploading
+                        ? <span className="text-white text-xs">…</span>
+                        : <Camera className="w-5 h-5 text-white" />}
+                    </span>
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    className="hidden"
+                    onChange={handleAvatarChange}
+                  />
+                </div>
+
                 <div className="flex-1 min-w-0">
                   <h2>{loading ? "Loading..." : profile?.name ?? "Your Profile"}</h2>
                   <p className="text-sm text-muted-foreground truncate">

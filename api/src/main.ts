@@ -3,6 +3,8 @@ import { AppModule } from './app.module';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
 import { ConfigService } from '@nestjs/config';
+import { join } from 'path';
+import * as express from 'express';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -67,6 +69,10 @@ async function bootstrap() {
       typeof app.use
     >[0],
   );
+
+  // ─── Static uploads ──────────────────────────────────────────────────────────
+  // Serve avatar images and other uploaded files at /uploads/*
+  app.use('/uploads', express.static(join(process.cwd(), 'uploads')));
 
   // ─── Listen ────────────────────────────────────────────────────────────────
   const port = configService.get<number>('PORT') ?? 3001;
