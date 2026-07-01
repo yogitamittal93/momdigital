@@ -82,6 +82,8 @@ export class AuthService {
         specialization: true,
         externalLink: true,
         profileImage: true,
+        avatarUrl: true,
+
         contributionCount: true,
         isFeatured: true,
         featuredAt: true,

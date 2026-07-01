@@ -275,7 +275,12 @@ export class AuthController {
     const filename = `${req.user.userId}-${randomUUID()}.${ext}`;
     await writeFile(join(uploadDir, filename), file.buffer);
 
-    const profileImageUrl = `/uploads/avatars/${filename}`;
+    // Build an absolute URL so the browser can load it regardless of which
+    // origin the frontend is on (localhost:3000 vs localhost:3001 in dev).
+    const protocol = (req as unknown as { protocol: string }).protocol ?? 'http';
+    const host = (req.headers as Record<string, string>)['host'] ?? `localhost:${this.configService.get<number>('PORT') ?? 3001}`;
+    const profileImageUrl = `${protocol}://${host}/uploads/avatars/${filename}`;
+
     await this.prisma.user.update({
       where: { id: req.user.userId },
       data: { profileImage: profileImageUrl },
@@ -284,6 +289,7 @@ export class AuthController {
 
     return { profileImageUrl };
   }
+
 
   // ─── Admin: Expert Approval ───────────────────────────────────────────────
 

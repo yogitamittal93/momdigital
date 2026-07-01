@@ -219,22 +219,27 @@ export default function ProfilePage() {
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={avatarUploading}
-                    className="relative w-20 h-20 rounded-full focus:outline-none focus:ring-2 focus:ring-primary group"
+                    className="relative w-20 h-20 rounded-full focus:outline-none focus:ring-2 focus:ring-primary group block"
                     aria-label="Change profile photo"
                   >
-                    <Avatar className="w-20 h-20">
+                    <Avatar className="w-20 h-20 pointer-events-none">
                       {(profile?.profileImage ?? profile?.avatarUrl) ? (
                         <AvatarImage
                           src={profile!.profileImage ?? profile!.avatarUrl ?? ""}
                           alt={profile!.name ?? "profile"}
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = "none";
+                          }}
                         />
-                      ) : null}
-                      <AvatarFallback>{initials}</AvatarFallback>
+                      ) : (
+                        <AvatarFallback>{initials}</AvatarFallback>
+                      )}
+                      {!(profile?.profileImage ?? profile?.avatarUrl) && null}
                     </Avatar>
                     <span className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                       {avatarUploading
-                        ? <span className="text-white text-xs">…</span>
-                        : <Camera className="w-5 h-5 text-white" />}
+                        ? <span className="text-white text-xs font-medium">…</span>
+                        : <Camera className="w-6 h-6 text-white" />}
                     </span>
                   </button>
                   <input
@@ -245,6 +250,7 @@ export default function ProfilePage() {
                     onChange={handleAvatarChange}
                   />
                 </div>
+
 
                 <div className="flex-1 min-w-0">
                   <h2>{loading ? "Loading..." : profile?.name ?? "Your Profile"}</h2>
