@@ -1,4 +1,4 @@
-import { NextResponse, NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 
 // NOTE: This middleware previously gated MOTHER_PROTECTED and /pro routes by
 // checking for an `access_token` cookie directly via req.cookies.get(...).
@@ -20,7 +20,7 @@ import { NextResponse, NextRequest } from "next/server";
 // can't do this — it drops Set-Cookie headers from proxied responses — so
 // this needs real middleware-based proxying. Tracked for later.
 
-export function middleware(_req: NextRequest) {
+export function middleware() {
   return NextResponse.next();
 }
 

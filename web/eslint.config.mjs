@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Generated mobile/web bundle artifacts checked into android assets.
+    "android/app/src/main/assets/public/**",
+    // Generated Capacitor iOS bundle artifacts.
+    "ios/App/App/public/**",
   ]),
 ]);
 

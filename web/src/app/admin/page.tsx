@@ -98,7 +98,6 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (isAdmin) loadExperts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
 
   // ── Approve / Suspend ──────────────────────────────────────────────────────

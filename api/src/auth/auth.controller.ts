@@ -285,12 +285,18 @@ export class AuthController {
     if (!file) {
       return { message: 'No file provided.' };
     }
-    const allowed = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+    const allowed = new Set([
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      'image/gif',
+    ]);
     if (!allowed.has(file.mimetype)) {
       return { message: 'Only JPEG, PNG, WEBP, and GIF are allowed.' };
     }
 
-    const uploadDir = this.configService.get<string>('AVATAR_UPLOAD_DIR') ?? 'uploads/avatars';
+    const uploadDir =
+      this.configService.get<string>('AVATAR_UPLOAD_DIR') ?? 'uploads/avatars';
     await mkdir(uploadDir, { recursive: true });
     const ext = file.originalname.split('.').pop()?.toLowerCase() ?? 'jpg';
     const filename = `${req.user.userId}-${randomUUID()}.${ext}`;
@@ -306,7 +312,6 @@ export class AuthController {
 
     return { profileImageUrl };
   }
-
 
   // ─── Admin: Expert Approval ───────────────────────────────────────────────
 

@@ -25,7 +25,7 @@ export function useMlStatus(): MlHealthState {
     status: "loading",
     chunksIndexed: 0,
   });
-  const mountedAt = useRef(Date.now());
+  const mountedAt = useRef<number | null>(null);
 
   const check = useCallback(async () => {
     try {
@@ -47,22 +47,24 @@ export function useMlStatus(): MlHealthState {
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
     let cancelled = false;
+    mountedAt.current = Date.now();
+
+    const runCheck = async () => {
+      if (cancelled) return;
+      const healthy = await check();
+      if (cancelled || healthy) return;
+
+      const elapsed = Date.now() - (mountedAt.current ?? Date.now());
+      schedule(elapsed < FAST_POLL_DURATION_MS ? FAST_POLL_MS : SLOW_POLL_MS);
+    };
 
     const schedule = (delayMs: number) => {
       timer = setTimeout(async () => {
-        if (cancelled) return;
-        const healthy = await check();
-        if (cancelled || healthy) return;
-
-        const elapsed = Date.now() - mountedAt.current;
-        schedule(elapsed < FAST_POLL_DURATION_MS ? FAST_POLL_MS : SLOW_POLL_MS);
+        await runCheck();
       }, delayMs);
     };
 
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void check().then((healthy) => {
-      if (!cancelled && !healthy) schedule(FAST_POLL_MS);
-    });
+    schedule(0);
 
     return () => {
       cancelled = true;

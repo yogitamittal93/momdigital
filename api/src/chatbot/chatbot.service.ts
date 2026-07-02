@@ -35,10 +35,9 @@ export class ChatbotService {
       this.config.get<string>('ML_SERVICE_URL') ?? 'http://127.0.0.1:5000';
 
     const nodeEnv = this.config.get<string>('NODE_ENV');
-    const isLocalMl =
-      /^(https?:\/\/)?(127\.0\.0\.1|localhost)(:\d+)?\/?$/.test(
-        this.mlBaseUrl,
-      );
+    const isLocalMl = /^(https?:\/\/)?(127\.0\.0\.1|localhost)(:\d+)?\/?$/.test(
+      this.mlBaseUrl,
+    );
     if (nodeEnv === 'production' && isLocalMl) {
       this.logger.error(
         'ML_SERVICE_URL points to localhost in production — chat will stay offline. ' +
@@ -708,8 +707,7 @@ export class ChatbotService {
       };
       const chunksIndexed = data.chunks_indexed ?? 0;
       const chromaReady = data.chroma_ready ?? chunksIndexed > 0;
-      const mlStatus =
-        data.status === 'ok' && chromaReady ? 'ok' : 'degraded';
+      const mlStatus = data.status === 'ok' && chromaReady ? 'ok' : 'degraded';
 
       if (mlStatus === 'degraded') {
         this.logger.warn(
