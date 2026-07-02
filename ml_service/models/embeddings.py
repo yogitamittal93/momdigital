@@ -45,7 +45,7 @@ def _ensure_db_downloaded():
             repo_type="dataset",
             local_dir=_DB_PATH,
             token=_HF_TOKEN or None,  # None = use cached login if available
-            ignore_patterns=["*.md", ".gitattributes"],
+            ignore_patterns=["*.md", ".gitattributes", "*.pdf"],
             max_workers=_HF_DOWNLOAD_MAX_WORKERS,
         )
         logger.info("✓ matrny_db/ downloaded successfully to %s", _DB_PATH)

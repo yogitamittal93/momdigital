@@ -414,7 +414,7 @@ jobs:
               repo_type="dataset",
               local_dir="matrny_db",
               token=token,
-              ignore_patterns=["*.md", ".gitattributes"],
+              ignore_patterns=["*.md", ".gitattributes", "*.pdf"],
               max_workers=1,
           )
           print("Prefetched matrny_db into build context")
