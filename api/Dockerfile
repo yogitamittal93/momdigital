@@ -40,6 +40,12 @@ COPY prisma ./prisma
 
 # Non-root user for security
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+# Writable upload dirs — Railway has no persistent volume by default; without
+# this, appuser cannot mkdir/write under /app and avatar uploads return 500.
+RUN mkdir -p uploads/avatars uploads/scans uploads/credentials \
+  && chown -R appuser:appgroup uploads
+
 USER appuser
 
 # Correct port — NestJS listens on 3001 (matches compose + config.validation.ts)

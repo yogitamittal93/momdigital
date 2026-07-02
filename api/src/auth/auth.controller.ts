@@ -92,6 +92,22 @@ export class AuthController {
     res.clearCookie('refresh_token', cookieOptions);
   }
 
+  /** Public origin for uploaded files (no /api prefix). */
+  private buildPublicOrigin(req: Request): string {
+    const configured = this.configService.get<string>('API_PUBLIC_ORIGIN');
+    if (configured) return configured.replace(/\/$/, '');
+
+    const forwardedProto = req.headers['x-forwarded-proto'];
+    const protocol =
+      typeof forwardedProto === 'string'
+        ? forwardedProto.split(',')[0].trim()
+        : (req.protocol ?? 'http');
+    const host =
+      req.get('host') ??
+      `localhost:${this.configService.get<number>('PORT') ?? 3001}`;
+    return `${protocol}://${host}`;
+  }
+
   @Post('register')
   async register(
     @Body() dto: RegisterDto,
@@ -118,7 +134,12 @@ export class AuthController {
   }
 
   @Post('login')
-  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Throttle({
+    default: {
+      limit: process.env.NODE_ENV === 'test' ? 200 : 5,
+      ttl: 60000,
+    },
+  })
   @HttpCode(HttpStatus.OK)
   async login(
     @Body() dto: LoginDto,
@@ -275,15 +296,11 @@ export class AuthController {
     const filename = `${req.user.userId}-${randomUUID()}.${ext}`;
     await writeFile(join(uploadDir, filename), file.buffer);
 
-    // Build an absolute URL so the browser can load it regardless of which
-    // origin the frontend is on (localhost:3000 vs localhost:3001 in dev).
-    const protocol = (req as unknown as { protocol: string }).protocol ?? 'http';
-    const host = (req.headers as Record<string, string>)['host'] ?? `localhost:${this.configService.get<number>('PORT') ?? 3001}`;
-    const profileImageUrl = `${protocol}://${host}/uploads/avatars/${filename}`;
+    const profileImageUrl = `${this.buildPublicOrigin(req)}/uploads/avatars/${filename}`;
 
     await this.prisma.user.update({
       where: { id: req.user.userId },
-      data: { profileImage: profileImageUrl },
+      data: { profileImage: profileImageUrl, avatarUrl: profileImageUrl },
     });
     await this.authService.invalidateProfileCache(req.user.userId);
 

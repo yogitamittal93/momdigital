@@ -24,6 +24,11 @@ npm run start:dev
 
 - Set `NODE_ENV=production`.
 - Set strong JWT secrets in env manager.
-- Configure `CLIENT_URLS` with deployed frontend origins.
-- Ensure persistent storage for `SCAN_UPLOAD_DIR` or move to S3-compatible object storage.
+- Configure `CLIENT_URLS` and `FRONTEND_URL` with deployed frontend origins (e.g. `https://momdigital.live`, `https://www.momdigital.live`).
+- **Railway API service**: set `ML_SERVICE_URL` to the **public Railway URL** of the ML service (e.g. `https://ml-service-production-xxxx.up.railway.app`). Do **not** use `http://127.0.0.1:5000` — that only works locally.
+- **Railway API service**: set `API_PUBLIC_ORIGIN` to the API's public origin **without** `/api` (e.g. `https://api-production-xxxx.up.railway.app`) so avatar URLs use HTTPS behind Railway's proxy.
+- **Railway ML service**: set `HF_REPO_ID` and `HF_TOKEN` so ChromaDB downloads on cold start. Without this, `/health` stays `degraded` (0 docs) forever.
+- **Railway ML service**: set `GROQ_API_KEY` for LLM responses.
+- **Vercel**: set `NEXT_PUBLIC_API_URL` to the Railway API URL ending in `/api` (baked at build time).
+- Ensure persistent storage for `SCAN_UPLOAD_DIR` / avatars or move to S3-compatible object storage (Railway filesystem is ephemeral — avatars are lost on redeploy).
 - Apply Prisma migrations from `prisma/migrations` before boot.

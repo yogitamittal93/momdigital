@@ -13,6 +13,12 @@ async function bootstrap() {
   });
   const configService = app.get(ConfigService);
 
+  // Railway / reverse proxies terminate TLS — needed for secure cookies and URLs.
+  const expressApp = app.getHttpAdapter().getInstance() as {
+    set: (key: string, value: number) => void;
+  };
+  expressApp.set('trust proxy', 1);
+
   // ─── CORS ──────────────────────────────────────────────────────────────────
   // Parse comma-separated CLIENT_URLS (e.g. for multi-tenant / staging envs).
   const frontendOrigin = configService.get<string>('FRONTEND_URL');

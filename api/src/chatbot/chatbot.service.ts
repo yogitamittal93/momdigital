@@ -33,6 +33,20 @@ export class ChatbotService {
   ) {
     this.mlBaseUrl =
       this.config.get<string>('ML_SERVICE_URL') ?? 'http://127.0.0.1:5000';
+
+    const nodeEnv = this.config.get<string>('NODE_ENV');
+    const isLocalMl =
+      /^(https?:\/\/)?(127\.0\.0\.1|localhost)(:\d+)?\/?$/.test(
+        this.mlBaseUrl,
+      );
+    if (nodeEnv === 'production' && isLocalMl) {
+      this.logger.error(
+        'ML_SERVICE_URL points to localhost in production — chat will stay offline. ' +
+          'Set ML_SERVICE_URL to your Railway ML service public URL (e.g. https://<ml-service>.up.railway.app).',
+      );
+    } else {
+      this.logger.log(`ML service URL: ${this.mlBaseUrl}`);
+    }
   }
 
   async processUserMessage(userId: string, message: string) {
@@ -679,18 +693,42 @@ export class ChatbotService {
     mlStatus: 'ok' | 'degraded';
     chunksIndexed: number;
     mlUrl: string;
+    chromaReady?: boolean;
+    chromaError?: string | null;
   }> {
     try {
       const res = await firstValueFrom(
-        this.httpService.get(`${this.mlBaseUrl}/health`, { timeout: 4000 }),
+        this.httpService.get(`${this.mlBaseUrl}/health`, { timeout: 30_000 }),
       );
-      const data = res.data as { status?: string; chunks_indexed?: number };
-      return {
-        mlStatus: data.status === 'ok' ? 'ok' : 'degraded',
-        chunksIndexed: data.chunks_indexed ?? 0,
-        mlUrl: this.mlBaseUrl,
+      const data = res.data as {
+        status?: string;
+        chunks_indexed?: number;
+        chroma_ready?: boolean;
+        chroma_error?: string | null;
       };
-    } catch {
+      const chunksIndexed = data.chunks_indexed ?? 0;
+      const chromaReady = data.chroma_ready ?? chunksIndexed > 0;
+      const mlStatus =
+        data.status === 'ok' && chromaReady ? 'ok' : 'degraded';
+
+      if (mlStatus === 'degraded') {
+        this.logger.warn(
+          `ML health degraded (chunks=${chunksIndexed}, chromaReady=${chromaReady}, url=${this.mlBaseUrl})`,
+        );
+      }
+
+      return {
+        mlStatus,
+        chunksIndexed,
+        mlUrl: this.mlBaseUrl,
+        chromaReady,
+        chromaError: data.chroma_error ?? null,
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.warn(
+        `ML health check failed for ${this.mlBaseUrl}/health: ${message}`,
+      );
       return { mlStatus: 'degraded', chunksIndexed: 0, mlUrl: this.mlBaseUrl };
     }
   }

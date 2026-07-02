@@ -54,6 +54,20 @@ class EnvironmentVariables {
   @IsOptional()
   CLIENT_URLS?: string;
 
+  @IsString()
+  @IsOptional()
+  FRONTEND_URL?: string;
+
+  @IsUrl(
+    { require_tld: false },
+    {
+      message:
+        'API_PUBLIC_ORIGIN must be a valid URL (TLD check disabled for internal hosts)',
+    },
+  )
+  @IsOptional()
+  API_PUBLIC_ORIGIN?: string;
+
   @IsNumber()
   @IsOptional()
   PORT?: number;

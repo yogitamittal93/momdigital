@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api-client";
 
 export type MlStatus = "loading" | "ok" | "degraded";
@@ -10,20 +10,22 @@ export interface MlHealthState {
   chunksIndexed: number;
 }
 
+const FAST_POLL_MS = 5_000;
+const SLOW_POLL_MS = 30_000;
+const FAST_POLL_DURATION_MS = 3 * 60_000;
+
 /**
- * useMlStatus — polls GET /chatbot/health once on mount.
+ * useMlStatus — polls GET /chatbot/health on mount and retries while degraded.
  *
- * Reusable on any page that embeds the chatbot or wants to display
- * ML service status (recovery, postpartum, career, etc.).
- *
- * @example
- *   const { status, chunksIndexed } = useMlStatus();
+ * Production ML cold-starts (model load + ChromaDB download) can exceed a
+ * single request; without retries the UI stays on "warming up" forever.
  */
 export function useMlStatus(): MlHealthState {
   const [state, setState] = useState<MlHealthState>({
     status: "loading",
     chunksIndexed: 0,
   });
+  const mountedAt = useRef(Date.now());
 
   const check = useCallback(async () => {
     try {
@@ -35,14 +37,37 @@ export function useMlStatus(): MlHealthState {
         status: res.mlStatus === "ok" ? "ok" : "degraded",
         chunksIndexed: res.chunksIndexed ?? 0,
       });
+      return res.mlStatus === "ok";
     } catch {
       setState({ status: "degraded", chunksIndexed: 0 });
+      return false;
     }
   }, []);
 
   useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let cancelled = false;
+
+    const schedule = (delayMs: number) => {
+      timer = setTimeout(async () => {
+        if (cancelled) return;
+        const healthy = await check();
+        if (cancelled || healthy) return;
+
+        const elapsed = Date.now() - mountedAt.current;
+        schedule(elapsed < FAST_POLL_DURATION_MS ? FAST_POLL_MS : SLOW_POLL_MS);
+      }, delayMs);
+    };
+
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    check();
+    void check().then((healthy) => {
+      if (!cancelled && !healthy) schedule(FAST_POLL_MS);
+    });
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
   }, [check]);
 
   return state;

@@ -36,7 +36,7 @@ import { validateConfig } from './common/config.validation';
     ThrottlerModule.forRoot([
       {
         ttl: 60000,
-        limit: 10,
+        limit: process.env.NODE_ENV === 'test' ? 500 : 10,
       },
     ]),
     CommonModule,
