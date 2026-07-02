@@ -9,24 +9,76 @@ from processors.response_generator import (
 from models.embeddings import get_collection
 import logging
 import time
+import threading
 from collections import defaultdict
 app = Flask(__name__)  # ← app defined FIRST
 CORS(app)
-
-@app.route('/')        # ← route defined AFTER app
-def demo():
-    return send_from_directory('.', 'demo.html')
-#app = Flask(__name__)
-#CORS(app, origins=[
- #   "http://localhost:3000",
-  #  "http://localhost:3001",
-#])
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+_bootstrap_state = {
+    "phase": "starting",
+    "ready": False,
+    "chunks_indexed": 0,
+    "error": None,
+    "last_updated": time.time(),
+}
+_bootstrap_lock = threading.Lock()
+
+
+def _set_bootstrap_state(**updates):
+    with _bootstrap_lock:
+        _bootstrap_state.update(updates)
+        _bootstrap_state["last_updated"] = time.time()
+
+
+def _snapshot_bootstrap_state():
+    with _bootstrap_lock:
+        return dict(_bootstrap_state)
+
+
+def _warmup_chromadb():
+    _set_bootstrap_state(phase="loading", ready=False, error=None)
+    try:
+        collection = get_collection()
+        count = collection.count()
+        _set_bootstrap_state(phase="ready", ready=count > 0, chunks_indexed=count)
+        if count == 0:
+            logger.warning("Warmup completed but ChromaDB is empty")
+        else:
+            logger.info("Warmup completed with %d chunks indexed", count)
+    except Exception as e:
+        logger.exception("Warmup failed: %s", e)
+        _set_bootstrap_state(
+            phase="error",
+            ready=False,
+            chunks_indexed=0,
+            error=str(e),
+        )
+
+
+def _start_warmup():
+    thread = threading.Thread(target=_warmup_chromadb, daemon=True)
+    thread.start()
+    return thread
+
+
+_start_warmup()
+
+
+@app.route('/')
+def root():
+    state = _snapshot_bootstrap_state()
+    return jsonify({
+        "service": "momdigital-ml",
+        "status": "ok" if state["ready"] else state["phase"],
+        "chunks_indexed": state["chunks_indexed"],
+        "message": "Use /health for readiness and /query for chat requests.",
+    }), 200
 
 # Simple in-memory rate limiter: 60 requests per minute per user/IP
 _rate_limit_store: dict[str, list[float]] = defaultdict(list)
@@ -126,25 +178,13 @@ def query():
 
 @app.route("/health", methods=["GET"])
 def health():
-    chroma_ok = False
-    count = 0
-    chroma_error = None
-
-    try:
-        collection = get_collection()
-        count = collection.count()
-        chroma_ok = count > 0
-    except Exception as e:
-        logger.warning("Health check: ChromaDB not ready: %s", e)
-        chroma_error = str(e)
-
-    # Always return 200 — service is alive regardless of ChromaDB state.
-    # ChromaDB empty = data not ingested yet, not a fatal error.
+    state = _snapshot_bootstrap_state()
     return jsonify({
-        "status": "ok" if chroma_ok else "degraded",
-        "chunks_indexed": count,
-        "chroma_ready": chroma_ok,
-        "chroma_error": chroma_error,
+        "status": "ok" if state["ready"] else "degraded",
+        "phase": state["phase"],
+        "chunks_indexed": state["chunks_indexed"],
+        "chroma_ready": state["ready"],
+        "chroma_error": state["error"],
         "version": "1.0.0"
     }), 200
 

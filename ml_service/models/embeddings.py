@@ -16,6 +16,7 @@ _DB_PATH = os.path.normpath(os.path.join(_ML_SERVICE_DIR, "matrny_db"))
 # Set this in your .env — format: "your-hf-username/matrny-db"
 _HF_REPO_ID = os.getenv("HF_REPO_ID", "")
 _HF_TOKEN   = os.getenv("HF_TOKEN", "")
+_HF_DOWNLOAD_MAX_WORKERS = max(1, int(os.getenv("HF_DOWNLOAD_MAX_WORKERS", "1")))
 
 
 def _ensure_db_downloaded():
@@ -45,6 +46,7 @@ def _ensure_db_downloaded():
             local_dir=_DB_PATH,
             token=_HF_TOKEN or None,  # None = use cached login if available
             ignore_patterns=["*.md", ".gitattributes"],
+            max_workers=_HF_DOWNLOAD_MAX_WORKERS,
         )
         logger.info("✓ matrny_db/ downloaded successfully to %s", _DB_PATH)
     except Exception as e:
