@@ -34,10 +34,10 @@ class EnvironmentVariables {
   GROQ_API_KEY!: string;
 
   @IsUrl(
-    { require_tld: false },
+    { require_tld: false, allow_underscores: true },
     {
       message:
-        'ML_SERVICE_URL must be a valid URL (TLD check disabled for internal/Docker hosts)',
+        'ML_SERVICE_URL must be a valid URL (TLD check disabled, underscores allowed for Railway internal hosts)',
     },
   )
   ML_SERVICE_URL!: string;
