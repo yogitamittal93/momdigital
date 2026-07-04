@@ -41,4 +41,4 @@ USER appuser
 # 1 worker — Railway's default memory allocation OOM-kills a 2-worker config
 # before either worker can finish loading the ML/embedding stack and serve
 # a request. Bind to $PORT (Railway's healthcheck hits $PORT, not 5000).
-CMD ["sh", "-c", "gunicorn --workers 1 --bind 0.0.0.0:${PORT:-5000} --timeout 120 main:app"]
+CMD ["sh", "-c", "gunicorn --workers 1 --worker-class gthread --threads 4 --bind 0.0.0.0:${PORT:-5000} --timeout 120 main:app"]
