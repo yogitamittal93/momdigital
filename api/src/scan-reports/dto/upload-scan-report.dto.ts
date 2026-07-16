@@ -1,4 +1,11 @@
-import { IsDateString, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsDateString,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class UploadScanReportDto {
   @IsOptional()
@@ -14,4 +21,12 @@ export class UploadScanReportDto {
   @IsOptional()
   @IsDateString()
   capturedAt?: string;
+
+  /** User explicitly requests a doctor to review this document */
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }: { value: unknown }) =>
+    value === 'true' || value === true,
+  )
+  requestDoctorReview?: boolean;
 }

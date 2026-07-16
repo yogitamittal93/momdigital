@@ -12,6 +12,7 @@ import { ReviewStatus, UserRole, Prisma } from '@prisma/client';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { ConfigService } from '@nestjs/config';
+import { NotificationsService } from 'src/notifications/notifications.service';
 
 @Injectable()
 export class ContentRequestsService {
@@ -20,6 +21,7 @@ export class ContentRequestsService {
     private readonly routing: RoutingService,
     private readonly appConfig: AppConfigService,
     private readonly configService: ConfigService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   // ─── Mother-facing ─────────────────────────────────────────────────────────
@@ -257,6 +259,16 @@ export class ContentRequestsService {
   ) {
     const assignment = await this.prisma.expertAssignment.findFirst({
       where: { id: assignmentId, expertId },
+      include: {
+        request: {
+          select: {
+            id: true,
+            uploadedById: true,
+            requestType: true,
+            scanReport: { select: { originalName: true } },
+          },
+        },
+      },
     });
 
     if (!assignment) throw new NotFoundException('Assignment not found');
@@ -284,6 +296,42 @@ export class ContentRequestsService {
 
       await this.maybeSetFeatured(expertId, expert);
     }
+
+    // ── Notify the mother about the review outcome ──────────────────────────
+    const req = assignment.request;
+    const isScan = !!req.scanReport;
+    const subjectLabel = isScan
+      ? `scan "${req.scanReport!.originalName}"`
+      : 'question';
+
+    let title: string;
+    let body: string;
+
+    if (status === ReviewStatus.APPROVED) {
+      title = 'Doctor reviewed your ' + (isScan ? 'scan' : 'question');
+      body = `A doctor has reviewed your ${subjectLabel} and approved it.${note ? ` Note: ${note}` : ''}`;
+    } else if (status === ReviewStatus.FLAGGED) {
+      title = 'Doctor flagged your ' + (isScan ? 'scan' : 'question');
+      body = `A doctor reviewed your ${subjectLabel} and flagged it for attention.${note ? ` Note: ${note}` : ''}`;
+    } else {
+      title = 'Doctor left a note on your ' + (isScan ? 'scan' : 'question');
+      body = `A doctor reviewed your ${subjectLabel} and left a note.${note ? ` "${note}"` : ''}`;
+    }
+
+    await this.notifications
+      .createForUser(req.uploadedById, {
+        type: isScan ? 'SCAN_REVIEWED' : 'CHAT_ANSWERED',
+        title,
+        body,
+        metadata: {
+          assignmentId,
+          reportId: req.scanReport?.originalName ? undefined : undefined,
+          expertNote: note,
+        },
+      })
+      .catch(() => {
+        // non-blocking — don't fail the review if notification fails
+      });
 
     return updated;
   }

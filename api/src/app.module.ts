@@ -24,6 +24,8 @@ import { FeedingLogsModule } from './feeding-logs/feeding-logs.module';
 import { WeightLogsModule } from './weight-logs/weight-logs.module';
 import { MoodLogsModule } from './mood-logs/mood-logs.module';
 import { KickLogsModule } from './kick-logs/kick-logs.module';
+import { HabitsModule } from './habits/habits.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 import { validateConfig } from './common/config.validation';
 
@@ -53,6 +55,7 @@ import { validateConfig } from './common/config.validation';
     WeightLogsModule,
     MoodLogsModule,
     KickLogsModule,
+    HabitsModule,
     ScanReportsModule,
     ContentRequestsModule,
     TrainerContentModule,
@@ -60,6 +63,7 @@ import { validateConfig } from './common/config.validation';
     PostsModule,
     DoctorQueueModule,
     RoutingModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

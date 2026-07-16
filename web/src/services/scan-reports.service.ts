@@ -20,6 +20,8 @@ export async function uploadScanReport(
   if (payload.category) formData.append("category", payload.category);
   if (payload.notes) formData.append("notes", payload.notes);
   if (payload.capturedAt) formData.append("capturedAt", payload.capturedAt);
+  if (payload.requestDoctorReview)
+    formData.append("requestDoctorReview", "true");
 
   // Use fetch directly for multipart + progress tracking
   return new Promise((resolve, reject) => {

@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from 'prisma/prisma.service';
 import { DoctorQueueService } from '../doctor-queue/doctor-queue.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { firstValueFrom } from 'rxjs';
 
 type RagResult = {
@@ -29,6 +30,7 @@ export class ChatbotService {
     private readonly httpService: HttpService,
     private readonly prisma: PrismaService,
     private readonly doctorQueue: DoctorQueueService,
+    private readonly notifications: NotificationsService,
     private readonly config: ConfigService,
   ) {
     this.mlBaseUrl =
@@ -309,6 +311,16 @@ export class ChatbotService {
         category: 'general',
         confidence: ragResult.confidence,
       });
+
+      // Notify user that their question was queued for a doctor
+      await this.notifications
+        .createForUser(userId, {
+          type: 'CHAT_QUEUED',
+          title: 'Your question is being reviewed by a doctor',
+          body: 'The AI flagged your question for expert review. A doctor will look at it and you will be notified once they respond.',
+          metadata: { contentRequestId: contentRequest.id, question: message },
+        })
+        .catch(() => {});
     } catch (err) {
       this.logger.warn(`Doctor queue failed: ${(err as Error).message}`);
     }

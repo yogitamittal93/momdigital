@@ -80,6 +80,8 @@ model User {
 
   // Expert profile fields (null for MOTHERs)
   specialization  String?       // e.g. "Postpartum Nutrition"
+  bio             String?       // short trainer description shown on directory card
+  city            String?       // e.g. "Chandigarh", "Mohali", "Panchkula"
   externalLink    String?       // personal website / LinkedIn
   credentialUrl   String?       // uploaded credential PDF
   registrationNo  String?       // MCI/NMC/NIN registration number (required for MBBS)
@@ -117,10 +119,13 @@ model User {
   weightLogs          WeightLog[]
   moodLogs            MoodLog[]
   kickLogs            KickLog[]
+  habits              Habit[]
+  habitLogs           HabitLog[]
   appointments        Appointment[]
   chatMessages        ChatMessage[]
   contentRequests     ContentRequest[]    @relation("UploadedBy")
   piiAccessLogs       PiiAuditLog[]       @relation("ExpertPiiAccess")
+  notifications       Notification[]
 
   // Relations — expert
   expertAssignments   ExpertAssignment[]  @relation("AssignedExpert")
@@ -290,6 +295,9 @@ model ScanReport {
   notes        String?  // user's notes about this scan
   capturedAt   DateTime? // when the scan was taken (from DICOM or user input)
 
+  // Doctor review opt-in (user explicitly requests expert review on upload)
+  requestDoctorReview Boolean @default(false)
+
   // Sharing
   shareToken   String?  @unique
   shareExpiry  DateTime?
@@ -319,6 +327,35 @@ model ScanReportShare {
   createdAt   DateTime @default(now())
 
   @@map("scan_report_shares")
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// NOTIFICATIONS — in-app notification feed for mothers
+// ═══════════════════════════════════════════════════════════════════
+
+enum NotificationType {
+  SCAN_QUEUED           // scan was sent to a doctor queue
+  SCAN_REVIEWED         // doctor finished reviewing the scan
+  CHAT_QUEUED           // AI flagged a chat question for doctor review
+  CHAT_ANSWERED         // doctor responded to a queued chat question
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type      NotificationType
+  title     String
+  body      String
+  isRead    Boolean          @default(false)
+  metadata  Json?            // e.g. { reportId, assignmentId, expertName, expertNote }
+
+  createdAt DateTime         @default(now())
+
+  @@index([userId])
+  @@index([userId, isRead])
+  @@map("notifications")
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -692,4 +729,52 @@ model KickLog {
   @@unique([userId, date])
   @@index([userId])
   @@map("kick_logs")
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// DAILY HABITS — personalized supplement / wellness tracking
+// ═══════════════════════════════════════════════════════════════════
+
+model Habit {
+  id              String     @id @default(uuid())
+  userId          String
+  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name            String              // e.g. "Prenatal Vitamins", "Water", "Creatine"
+  emoji           String?             // e.g. "💊", "💧", "🏋️"
+  category        String   @default("custom") // "supplement" | "hydration" | "exercise" | "custom"
+  color           String?             // hex or css var, for calendar dot color
+  targetQuantity  Int?                // e.g. 15 (glasses of water), 7 (vitamins)
+  unit            String?             // e.g. "glasses", "pills", "g"
+  isActive        Boolean  @default(true)
+  sortOrder       Int      @default(0)
+
+  // Loading-phase support (e.g. creatine 7-day loading)
+  hasLoadingPhase   Boolean  @default(false)
+  loadingPhaseDays  Int?               // how many days the loading phase lasts
+  loadingStartDate  DateTime?          // when the loading phase started
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  logs            HabitLog[]
+
+  @@index([userId])
+  @@map("habits")
+}
+
+model HabitLog {
+  id          String   @id @default(uuid())
+  habitId     String
+  habit       Habit    @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  date        String   // YYYY-MM-DD — one log per habit per day
+  quantity    Int?     // actual quantity completed (e.g. 12 glasses out of 15)
+  completedAt DateTime @default(now())
+
+  @@unique([habitId, date])
+  @@index([userId])
+  @@index([userId, date])
+  @@map("habit_logs")
 }

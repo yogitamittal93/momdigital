@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Param,
   Patch,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { JwtGuard } from 'src/auth/jwt.gaurd';
@@ -20,6 +21,15 @@ export class ExpertsController {
   @Get('featured')
   getFeatured() {
     return this.service.getFeatured();
+  }
+
+  /** Public — trainer/nutritionist directory, filterable by role & city */
+  @Get('trainers')
+  getTrainers(
+    @Query('role') role?: string,
+    @Query('city') city?: string,
+  ) {
+    return this.service.getTrainers({ role, city });
   }
 
   // ─── Admin endpoints ───────────────────────────────────────────────────────

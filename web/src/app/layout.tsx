@@ -3,6 +3,7 @@ import "./globals.css";
 import "../styles/theme.css"; // your file
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { UserProfileProvider } from "@/context/user-profile-context";
+import { CapacitorProvider } from "@/components/capacitor/CapacitorProvider";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -26,7 +27,9 @@ export default function RootLayout({
       <body className={`${inter.variable} ${quicksand.variable} antialiased font-sans`}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <UserProfileProvider>
-            {children}
+            <CapacitorProvider>
+              {children}
+            </CapacitorProvider>
           </UserProfileProvider>
         </ThemeProvider>
       </body>

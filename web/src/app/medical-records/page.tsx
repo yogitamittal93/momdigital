@@ -9,6 +9,7 @@ import {
   Loader2,
   Search,
   Share2,
+  Stethoscope,
   Trash2,
   X,
 } from "lucide-react";
@@ -55,6 +56,7 @@ export default function MedicalRecordsPage() {
   const [shares, setShares] = useState<Record<string, ScanReportShare[]>>({});
   const [shareEmail, setShareEmail] = useState("");
   const [sharePermission, setSharePermission] = useState<"view" | "download">("view");
+  const [requestDoctorReview, setRequestDoctorReview] = useState(false);
   const [toasts, setToasts] = useState<Array<{ id: string; message: string; type: "ok" | "error" }>>([]);
 
   const acceptedHint = useMemo(() => "PDF, PNG, JPG, WEBP up to 10MB", []);
@@ -126,6 +128,7 @@ export default function MedicalRecordsPage() {
           category: category || undefined,
           notes: notes || undefined,
           capturedAt: capturedAt || undefined,
+          requestDoctorReview: requestDoctorReview || undefined,
         },
         setUploadProgress,
       );
@@ -134,7 +137,12 @@ export default function MedicalRecordsPage() {
       setCategory("");
       setNotes("");
       setCapturedAt("");
-      pushToast("Report uploaded successfully");
+      setRequestDoctorReview(false);
+      pushToast(
+        requestDoctorReview
+          ? "Report uploaded & sent to doctor for review"
+          : "Report uploaded successfully"
+      );
     } catch {
       setReports((prev) => prev.filter((r) => !r.id.startsWith("temp-")));
       setError("Upload failed. Please try again.");
@@ -296,6 +304,34 @@ export default function MedicalRecordsPage() {
                 onChange={(e) => setNotes(e.target.value)}
               />
             </div>
+
+            {/* Doctor review opt-in */}
+            <label
+              htmlFor="request-doctor-review"
+              className={`mt-4 flex items-start gap-3 p-4 rounded-2xl border-2 cursor-pointer transition-all ${
+                requestDoctorReview
+                  ? "border-primary bg-primary/5"
+                  : "border-border hover:border-primary/40"
+              }`}
+            >
+              <input
+                id="request-doctor-review"
+                type="checkbox"
+                className="mt-0.5 w-4 h-4 accent-primary shrink-0"
+                checked={requestDoctorReview}
+                onChange={(e) => setRequestDoctorReview(e.target.checked)}
+              />
+              <div>
+                <div className="flex items-center gap-2 font-medium text-sm">
+                  <Stethoscope className="w-4 h-4 text-primary" />
+                  Request doctor review for this document
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  A verified doctor will review this document and notify you with their findings.
+                  Leave unchecked to save privately.
+                </p>
+              </div>
+            </label>
 
             {uploading && (
               <div className="mt-3 text-sm text-muted-foreground">

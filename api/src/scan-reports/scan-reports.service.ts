@@ -13,6 +13,7 @@ import { UploadScanReportDto } from './dto/upload-scan-report.dto';
 import { ShareScanReportDto } from './dto/share-scan-report.dto';
 import { ContentRequestsService } from 'src/content-requests/content-requests.service';
 import { ContentRequestType } from '@prisma/client';
+import { NotificationsService } from 'src/notifications/notifications.service';
 
 const ALLOWED_MIME_TYPES = new Set([
   'application/pdf',
@@ -27,6 +28,7 @@ export class ScanReportsService {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     private readonly contentRequests: ContentRequestsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   private getUploadDir() {
@@ -92,6 +94,7 @@ export class ScanReportsService {
         category: dto.category,
         notes: dto.notes,
         capturedAt: dto.capturedAt ? new Date(dto.capturedAt) : undefined,
+        requestDoctorReview: dto.requestDoctorReview ?? false,
       },
       select: {
         id: true,
@@ -105,15 +108,26 @@ export class ScanReportsService {
       },
     });
 
-    // Auto-route scan for expert review
-    await this.contentRequests
-      .submit(userId, {
-        requestType: ContentRequestType.MEDICAL_SCAN,
-        scanReportId: report.id,
-      })
-      .catch(() => {
-        // Non-blocking: don't fail the upload if routing fails
-      });
+    // Auto-route scan for expert review ONLY if user opted in
+    if (dto.requestDoctorReview) {
+      await this.contentRequests
+        .submit(userId, {
+          requestType: ContentRequestType.MEDICAL_SCAN,
+          scanReportId: report.id,
+        })
+        .then(() =>
+          // Notify user that their scan was queued
+          this.notifications.createForUser(userId, {
+            type: 'SCAN_QUEUED',
+            title: 'Scan sent for doctor review',
+            body: `Your document "${file.originalname}" has been sent to a doctor for review. You will be notified once they respond.`,
+            metadata: { reportId: report.id, fileName: file.originalname },
+          }),
+        )
+        .catch(() => {
+          // Non-blocking: don't fail the upload if routing or notification fails
+        });
+    }
 
     return report;
   }

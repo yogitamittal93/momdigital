@@ -81,3 +81,36 @@
   padding-left: 1rem;
   padding-right: 1rem;
 }
+
+/* 6. CAPACITOR / MOBILE NATIVE STYLES */
+
+/* Safe-area CSS variables — CapacitorProvider sets these on <html> for native,
+   they fall back to 0px on web via env(). */
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+}
+
+/* On native platforms, prevent the default body scrolling that fights
+   the WebView's inertia scroll, and remove the default tap highlight. */
+@media all {
+  body {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: pan-y;
+    overscroll-behavior-y: contain;
+    /* Reserve space for native status bar */
+    padding-top: var(--sat);
+  }
+}
+
+/* Utility: apply bottom safe-area — use on fixed bottom navbars/tabs */
+@utility safe-bottom {
+  padding-bottom: var(--sab);
+}
+
+/* Utility: full-height accounting for status bar */
+@utility h-screen-safe {
+  height: calc(100dvh - var(--sat) - var(--sab));
+}

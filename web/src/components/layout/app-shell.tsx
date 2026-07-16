@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { useUserProfileContext } from "@/context/user-profile-context";
 import type { UserRole } from "@/lib/api-client";
+import { NotificationBell } from "./notification-bell";
 
 
 // ─── Mother navigation ───────────────────────────────────────────────────────
@@ -46,6 +47,7 @@ const motherSecondaryItems = [
   { path: "/career", icon: Briefcase, label: "Career" },
   { path: "/recovery", icon: TrendingUp, label: "Body Recovery" },
   { path: "/medical-records", icon: FolderOpen, label: "Medical Records" },
+  { path: "/trainers", icon: Users, label: "Top Trainers" },
 ];
 
 // ─── Expert navigation ────────────────────────────────────────────────────────
@@ -202,13 +204,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <p className="text-sm text-muted-foreground">Expert Portal</p>
             </>
           ) : (
-            <>
-              <h1 className="text-xl mb-1 text-primary flex items-center gap-2">
-                <Heart className="w-6 h-6 fill-primary" />
-                MomDigital
-              </h1>
-              <p className="text-sm text-muted-foreground">MidwifeBuddy</p>
-            </>
+            <div className="flex items-start justify-between">
+              <div>
+                <h1 className="text-xl mb-1 text-primary flex items-center gap-2">
+                  <Heart className="w-6 h-6 fill-primary" />
+                  MomDigital
+                </h1>
+                <p className="text-sm text-muted-foreground">MidwifeBuddy</p>
+              </div>
+              <NotificationBell />
+            </div>
           )}
         </div>
 

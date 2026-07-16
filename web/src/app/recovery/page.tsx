@@ -1,18 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertCircle, CheckCircle2, Flame, Sparkles } from "lucide-react";
+import { AlertCircle, CheckCircle2, Flame, ListChecks, Sparkles } from "lucide-react";
 import AppShell from "@/components/layout/app-shell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useUserProfile } from "@/hooks/use-user-profile";
+import { useHabits } from "@/hooks/use-habits";
 import { api } from "@/lib/api-client";
 import {
   getExercises,
   getWeeksSinceBirth,
   type Exercise,
 } from "@/lib/exercises";
+import { HabitSetupModal } from "@/components/habits/habit-setup-modal";
+import { DailyHabitChecklist } from "@/components/habits/daily-habit-checklist";
+import { HabitCalendar } from "@/components/habits/habit-calendar";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -234,6 +238,20 @@ function ExerciseCard({
 
 export default function BodyRecoveryPage() {
   const { user } = useUserProfile();
+  const [
+    habitSetupOpen,
+    setHabitSetupOpen,
+  ] = useState(false);
+
+  const {
+    habits,
+    todaySummary,
+    loading: habitsLoading,
+    saving: habitSaving,
+    toggleHabit,
+    createHabit,
+    deleteHabit,
+  } = useHabits();
 
   const isPostpartum = Boolean(user?.babyBirthDate);
   const weeksSinceBirth = user?.babyBirthDate
@@ -419,6 +437,44 @@ export default function BodyRecoveryPage() {
             </div>
           </Card>
 
+          {/* ── Daily Habits ───────────────────────────────────────────── */}
+          {user && (
+            <Card className="rounded-3xl border-none shadow-lg p-6">
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-2">
+                  <ListChecks className="w-5 h-5 text-primary" />
+                  <h3>Daily Habits</h3>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-full text-xs gap-1.5"
+                  onClick={() => setHabitSetupOpen(true)}
+                >
+                  + Add
+                </Button>
+              </div>
+
+              <DailyHabitChecklist
+                habits={todaySummary?.habits ?? []}
+                todayCompleted={todaySummary?.completed ?? 0}
+                todayTotal={todaySummary?.total ?? 0}
+                saving={habitSaving}
+                loading={habitsLoading}
+                onToggle={toggleHabit}
+                onOpenSetup={() => setHabitSetupOpen(true)}
+              />
+            </Card>
+          )}
+
+          {/* ── Habit Calendar ─────────────────────────────────────────── */}
+          {user && habits.length > 0 && (
+            <Card className="rounded-3xl border-none shadow-lg p-6">
+              <h3 className="mb-5">Habit Tracker Calendar</h3>
+              <HabitCalendar habits={habits} userId={user.id} />
+            </Card>
+          )}
+
           {/* Exercise cards */}
           {exercises.length > 0 ? (
             exercises.map((exercise) => (
@@ -442,7 +498,7 @@ export default function BodyRecoveryPage() {
           {/* Calendar heatmap */}
           {user && (
             <Card className="rounded-3xl border-none shadow-lg p-6">
-              <h3 className="mb-4">Activity this month</h3>
+              <h3 className="mb-4">Exercise Activity this month</h3>
               {loadingCalendar ? (
                 <p className="text-sm text-muted-foreground">Loading…</p>
               ) : (
@@ -452,6 +508,16 @@ export default function BodyRecoveryPage() {
           )}
         </div>
       </div>
+
+      {/* Habit setup modal */}
+      {habitSetupOpen && (
+        <HabitSetupModal
+          existingHabits={habits}
+          onAdd={createHabit}
+          onDelete={deleteHabit}
+          onClose={() => setHabitSetupOpen(false)}
+        />
+      )}
     </AppShell>
   );
 }

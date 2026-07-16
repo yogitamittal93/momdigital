@@ -23,4 +23,5 @@ export type UploadScanReportPayload = {
   category?: string;
   notes?: string;
   capturedAt?: string;
+  requestDoctorReview?: boolean;
 };

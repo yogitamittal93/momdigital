@@ -29,6 +29,49 @@ export class ExpertsService {
     });
   }
 
+  /** Public: directory of approved trainers/nutritionists (no auth needed) */
+  async getTrainers(filters: { role?: string; city?: string }) {
+    const TRAINER_ROLES: UserRole[] = [
+      UserRole.YOGA_TRAINER,
+      UserRole.WORKOUT_TRAINER,
+      UserRole.NUTRITIONIST,
+      UserRole.DANCE_TEACHER,
+    ];
+
+    const roleFilter = filters.role
+      ? [filters.role as UserRole]
+      : TRAINER_ROLES;
+
+    return this.prisma.user.findMany({
+      where: {
+        role: { in: roleFilter },
+        expertStatus: ExpertStatus.APPROVED,
+        ...(filters.city
+          ? { city: { contains: filters.city, mode: 'insensitive' } }
+          : {}),
+      },
+      orderBy: [
+        { isFeatured: 'desc' },
+        { contributionCount: 'desc' },
+        { name: 'asc' },
+      ],
+      select: {
+        id: true,
+        name: true,
+        role: true,
+        specialization: true,
+        bio: true,
+        city: true,
+        avatarUrl: true,
+        profileImage: true,
+        languagesSpoken: true,
+        externalLink: true,
+        isFeatured: true,
+        contributionCount: true,
+      },
+    });
+  }
+
   /** Admin: experts pending approval */
   async getPending() {
     return this.prisma.user.findMany({

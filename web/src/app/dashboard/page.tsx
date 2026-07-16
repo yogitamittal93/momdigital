@@ -15,6 +15,7 @@ import AppShell from "../../components/layout/app-shell";
 import { useUserProfile } from "@/hooks/use-user-profile";
 import { api, parseReply } from "@/lib/api-client";
 import { getDaysUntilDue, getPregnancyWeek } from "@/lib/pregnancy";
+import { DashboardHabitsWidget } from "@/components/habits/dashboard-habits-widget";
 
 const EXPERT_ROLES = ["MBBS", "AYURVEDA", "NUTRITIONIST", "CHEF", "YOGA_TRAINER", "WORKOUT_TRAINER", "DANCE_TEACHER", "ADMIN"];
 
@@ -65,12 +66,6 @@ export default function HomePage() {
       setIsSendingNote(false);
     }
   };
-
-  const upcomingTasks = [
-    { id: 1, title: "Doctor Appointment", date: "March 25, 2026", time: "10:00 AM", type: "appointment" },
-    { id: 2, title: "Take Prenatal Vitamins", date: "Daily", time: "8:00 AM", type: "medication" },
-    { id: 3, title: "Yoga Class", date: "March 26, 2026", time: "6:00 PM", type: "activity" },
-  ];
 
   const quickActions = [
     { icon: Heart, label: "Baby Kicks", color: "bg-primary/10 text-primary", link: "/pregnancy" },
@@ -160,38 +155,12 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Today's Tasks */}
+        {/* Daily Habits */}
         <section className="mb-8">
           <div className="flex items-center justify-between mb-4">
-            <h2>Today&apos;s Tasks</h2>
-            <Button variant="ghost" size="sm" className="text-primary">
-              View All
-            </Button>
+            <h2>Daily Habits</h2>
           </div>
-          <div className="space-y-3">
-            {upcomingTasks.map((task) => (
-              <Card key={task.id} className="border-none rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-full ${
-                      task.type === 'appointment' ? 'bg-primary/10 text-primary' :
-                      task.type === 'medication' ? 'bg-secondary/10 text-secondary' :
-                      'bg-accent/20 text-accent-foreground'
-                    } flex items-center justify-center flex-shrink-0`}>
-                      {task.type === 'appointment' ? <Calendar className="w-5 h-5" /> :
-                       task.type === 'medication' ? <Heart className="w-5 h-5" /> :
-                       <TrendingUp className="w-5 h-5" />}
-                    </div>
-                    <div>
-                      <p className="mb-1">{task.title}</p>
-                      <p className="text-xs text-muted-foreground">{task.date} • {task.time}</p>
-                    </div>
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-muted-foreground flex-shrink-0" />
-                </div>
-              </Card>
-            ))}
-          </div>
+          <DashboardHabitsWidget />
         </section>
 
         {/* Tips for the Day */}

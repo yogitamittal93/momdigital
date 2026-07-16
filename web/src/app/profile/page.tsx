@@ -88,6 +88,8 @@ export default function ProfilePage() {
     dueDate: "",
     babyBirthDate: "",
     specialization: "",
+    bio: "",
+    city: "",
     externalLink: "",
     whatsappNumber: "",
   });
@@ -153,6 +155,8 @@ export default function ProfilePage() {
       dueDate: profile?.dueDate ? profile.dueDate.slice(0, 10) : "",
       babyBirthDate: profile?.babyBirthDate ? profile.babyBirthDate.slice(0, 10) : "",
       specialization: profile?.specialization ?? "",
+      bio: (profile as Record<string, unknown>)?.bio as string ?? "",
+      city: (profile as Record<string, unknown>)?.city as string ?? "",
       externalLink: profile?.externalLink ?? "",
       whatsappNumber: profile?.whatsappNumber ?? "",
     });
@@ -175,6 +179,8 @@ export default function ProfilePage() {
         if (formState.babyBirthDate) payload.babyBirthDate = formState.babyBirthDate;
       } else {
         if (formState.specialization) payload.specialization = formState.specialization;
+        if (formState.bio) payload.bio = formState.bio;
+        if (formState.city) payload.city = formState.city;
         if (formState.externalLink) payload.externalLink = formState.externalLink;
         if (formState.whatsappNumber) payload.whatsappNumber = formState.whatsappNumber;
       }
@@ -346,6 +352,22 @@ export default function ProfilePage() {
                         value={formState.specialization}
                         onChange={(event) => setFormState((prev) => ({ ...prev, specialization: event.target.value }))}
                         placeholder="e.g. Postpartum Nutrition, OBGYN"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">City / Location</label>
+                      <Input
+                        value={formState.city}
+                        onChange={(event) => setFormState((prev) => ({ ...prev, city: event.target.value }))}
+                        placeholder="e.g. Chandigarh, Mohali, Panchkula"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Short Bio</label>
+                      <Input
+                        value={formState.bio}
+                        onChange={(event) => setFormState((prev) => ({ ...prev, bio: event.target.value }))}
+                        placeholder="e.g. Certified postpartum yoga specialist with 8+ years..."
                       />
                     </div>
                     <div>
