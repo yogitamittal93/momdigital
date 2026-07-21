@@ -5,6 +5,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from 'prisma/prisma.service';
 import { DoctorQueueService } from '../doctor-queue/doctor-queue.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { AnalyticsService } from '../analytics/analytics.service';
 import { firstValueFrom } from 'rxjs';
 
 type RagResult = {
@@ -12,6 +13,9 @@ type RagResult = {
   confidence: string;
   sources: string[];
   queueForDoctor?: boolean;
+  // Derived from ML service web_sources counts:
+  // 'chromadb' | 'chromadb+web' | 'ddg_fallback' | 'none'
+  ragSource?: string;
 };
 
 @Injectable()
@@ -31,6 +35,7 @@ export class ChatbotService {
     private readonly prisma: PrismaService,
     private readonly doctorQueue: DoctorQueueService,
     private readonly notifications: NotificationsService,
+    private readonly analyticsService: AnalyticsService,
     private readonly config: ConfigService,
   ) {
     this.mlBaseUrl =
@@ -59,6 +64,10 @@ export class ChatbotService {
           role: 'user',
           content: message,
         },
+      });
+      void this.analyticsService.trackEvent('chat_message_sent', userId, {
+        role: 'user',
+        messageLength: message.length,
       });
 
       // 2. Check if there is an approved doctor answer for this exact question
@@ -231,7 +240,14 @@ export class ChatbotService {
             userId,
             role: 'assistant',
             content: ragResult.reply,
+            ragSource: ragResult.ragSource ?? null,
           },
+        });
+
+        // Fire analytics event — fire-and-forget, never awaited on critical path
+        void this.analyticsService.logEvent(userId, 'chat_message_sent', {
+          ragSource: ragResult.ragSource ?? 'none',
+          confidence: ragResult.confidence,
         });
 
         return {
@@ -865,12 +881,35 @@ export class ChatbotService {
         sources?: string[];
         bypass_rag?: boolean;
         queue_for_doctor?: boolean;
+        web_sources?: {
+          abstracts: number;
+          reviews: number;
+          research: number;
+        };
       };
+
+      // Derive ragSource from the ML service response:
+      // Determine whether the answer came from ChromaDB chunks, DuckDuckGo
+      // web retrieval, both, or neither (safety fallback path).
+      const webTotal =
+        (data.web_sources?.abstracts ?? 0) +
+        (data.web_sources?.reviews ?? 0) +
+        (data.web_sources?.research ?? 0);
+      // The ML service uses empty chunks + safety fallback when it has no data,
+      // so we infer chromadb usage from confidence tier (non-safety answers had chunks).
+      const hadChunks =
+        data.confidence !== 'safety_fallback' && data.confidence !== 'none';
+      let ragSource: string;
+      if (hadChunks && webTotal > 0) ragSource = 'chromadb+web';
+      else if (hadChunks) ragSource = 'chromadb';
+      else if (webTotal > 0) ragSource = 'ddg_fallback';
+      else ragSource = 'none';
 
       return {
         reply: data.answer,
         confidence: data.confidence ?? 'ai_generated',
         sources: data.sources ?? [],
+        ragSource,
         queueForDoctor:
           data.queue_for_doctor === true ||
           data.confidence === 'requires_doctor',

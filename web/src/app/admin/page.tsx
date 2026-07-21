@@ -12,6 +12,7 @@ import {
   createExpert,
   approveExpert,
   suspendExpert,
+  fetchAnalyticsSummary,
 } from "@/services/auth.service";
 import {
   Shield,
@@ -58,9 +59,25 @@ export default function AdminPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [experts, setExperts] = useState<Expert[]>([]);
   const [loadingExperts, setLoadingExperts] = useState(true);
+  const [loadingSummary, setLoadingSummary] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [analyticsSummary, setAnalyticsSummary] = useState<{
+    totalEvents?: number;
+    signups?: number;
+    activeSessions?: number;
+    chatMessages?: number;
+    uniqueUsers?: number;
+    ragSourceBreakdown?: Record<string, number>;
+    retention?: { day2: number | null; day5: number | null; day10: number | null };
+    recentEvents?: Array<{
+      eventName: string;
+      userId?: string | null;
+      createdAt: string;
+      metadata?: Record<string, unknown> | null;
+    }>;
+  } | null>(null);
 
   // Create expert form
   const [form, setForm] = useState({
@@ -96,8 +113,19 @@ export default function AdminPage() {
       .finally(() => setLoadingExperts(false));
   };
 
+  const loadAnalyticsSummary = () => {
+    setLoadingSummary(true);
+    fetchAnalyticsSummary()
+      .then((data) => setAnalyticsSummary((data as typeof analyticsSummary) ?? null))
+      .catch(() => setGlobalError("Failed to load analytics summary."))
+      .finally(() => setLoadingSummary(false));
+  };
+
   useEffect(() => {
-    if (isAdmin) loadExperts();
+    if (isAdmin) {
+      loadExperts();
+      loadAnalyticsSummary();
+    }
   }, [isAdmin]);
 
   // ── Approve / Suspend ──────────────────────────────────────────────────────
@@ -198,6 +226,114 @@ export default function AdminPage() {
               {successMsg}
             </p>
           )}
+
+          {/* ── Analytics ─────────────────────────────────────────────── */}
+          <Card className="rounded-3xl border-none shadow-lg p-6">
+            <div className="flex items-center gap-3 mb-5">
+              <Shield className="w-5 h-5 text-primary" />
+              <h2 className="text-lg font-semibold">Analytics</h2>
+            </div>
+            {loadingSummary ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Loading analytics...
+              </div>
+            ) : (
+              <div className="space-y-5">
+                {/* Core counts */}
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                  <div className="rounded-2xl bg-muted/40 p-3">
+                    <p className="text-xs text-muted-foreground">Total events (30d)</p>
+                    <p className="text-xl font-semibold">{analyticsSummary?.totalEvents ?? 0}</p>
+                  </div>
+                  <div className="rounded-2xl bg-muted/40 p-3">
+                    <p className="text-xs text-muted-foreground">Signups (30d)</p>
+                    <p className="text-xl font-semibold">{analyticsSummary?.signups ?? 0}</p>
+                  </div>
+                  <div className="rounded-2xl bg-muted/40 p-3">
+                    <p className="text-xs text-muted-foreground">Active users (7d)</p>
+                    <p className="text-xl font-semibold">{analyticsSummary?.activeSessions ?? 0}</p>
+                  </div>
+                  <div className="rounded-2xl bg-muted/40 p-3">
+                    <p className="text-xs text-muted-foreground">Chat messages (30d)</p>
+                    <p className="text-xl font-semibold">{analyticsSummary?.chatMessages ?? 0}</p>
+                  </div>
+                  <div className="rounded-2xl bg-muted/40 p-3">
+                    <p className="text-xs text-muted-foreground">Unique users (30d)</p>
+                    <p className="text-xl font-semibold">{analyticsSummary?.uniqueUsers ?? 0}</p>
+                  </div>
+                </div>
+
+                {/* RAG source breakdown */}
+                {analyticsSummary?.ragSourceBreakdown && Object.keys(analyticsSummary.ragSourceBreakdown).length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-2">RAG Source (all-time)</p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                      {Object.entries(analyticsSummary.ragSourceBreakdown).map(([src, count]) => (
+                        <div key={src} className="rounded-xl bg-primary/5 border border-primary/10 p-2.5">
+                          <p className="text-[11px] text-muted-foreground font-mono">{src}</p>
+                          <p className="text-lg font-semibold">{count}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Retention */}
+                {analyticsSummary?.retention && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-2">Retention</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {(
+                        [
+                          { label: "Day 2", value: analyticsSummary.retention.day2 },
+                          { label: "Day 5", value: analyticsSummary.retention.day5 },
+                          { label: "Day 10", value: analyticsSummary.retention.day10 },
+                        ] as { label: string; value: number | null }[]
+                      ).map(({ label, value }) => (
+                        <div key={label} className="rounded-xl bg-muted/40 p-3 text-center">
+                          <p className="text-xs text-muted-foreground">{label}</p>
+                          <p className="text-xl font-semibold">
+                            {value === null ? (
+                              <span className="text-muted-foreground text-sm">—</span>
+                            ) : (
+                              `${value}%`
+                            )}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      — means not enough users have reached that day yet.
+                    </p>
+                  </div>
+                )}
+
+                {/* Recent events feed */}
+                {analyticsSummary?.recentEvents && analyticsSummary.recentEvents.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-2">Recent Activity</p>
+                    <div className="space-y-1 max-h-48 overflow-y-auto">
+                      {analyticsSummary.recentEvents.map((ev, i) => (
+                        <div key={i} className="flex items-center gap-2 text-xs text-muted-foreground px-1">
+                          <span className="font-mono bg-muted/50 px-1.5 py-0.5 rounded text-[10px]">
+                            {ev.eventName}
+                          </span>
+                          <span className="truncate font-mono opacity-50">
+                            {ev.userId?.slice(0, 8) ?? "anon"}…
+                          </span>
+                          <span className="ml-auto shrink-0">
+                            {new Date(ev.createdAt).toLocaleTimeString()}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </Card>
+
 
           {/* ── Create Expert Account ─────────────────────────────────── */}
           <Card className="rounded-3xl border-none shadow-lg p-6">

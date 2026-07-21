@@ -17,6 +17,7 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 import { CareerPlanDto } from './dto/career-plan.dto';
 import { RedisService } from 'src/common/redis.service';
 import { ExpertStatus, UserRole, Prisma } from '@prisma/client';
+import { AnalyticsService } from '../analytics/analytics.service';
 
 @Injectable()
 export class AuthService {
@@ -25,6 +26,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly redisService: RedisService,
+    private readonly analyticsService: AnalyticsService,
   ) {}
 
   private generateTokens(
@@ -142,6 +144,11 @@ export class AuthService {
       },
     });
 
+    void this.analyticsService.trackEvent('signup_completed', user.id, {
+      method: 'email',
+      role: user.role,
+    });
+
     const safeUser = { ...user };
     delete (safeUser as { password?: string | null }).password;
 
@@ -189,6 +196,12 @@ export class AuthService {
       data: {
         refreshToken: await bcrypt.hash(tokens.refresh_token, 10),
       },
+    });
+
+    void this.analyticsService.trackEvent('session_active', user.id, {
+      sessionId: session.id,
+      userAgent,
+      ipAddress,
     });
 
     const safeUser = { ...user };

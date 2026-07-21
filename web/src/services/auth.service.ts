@@ -52,6 +52,9 @@ export const uploadAvatar = async (file: File): Promise<{ profileImageUrl: strin
 /** Admin: list all experts */
 export const listExperts = () => api.get("/auth/admin/experts");
 
+/** Admin: analytics summary */
+export const fetchAnalyticsSummary = () => api.get("/analytics/summary");
+
 /** Admin: create expert account */
 export const createExpert = (data: {
   name: string;

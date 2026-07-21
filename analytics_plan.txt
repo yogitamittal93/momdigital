@@ -1,0 +1,107 @@
+Analytics implementation plan
+============================
+
+Scope
+- This pass is analytics-only.
+- No gestational-stage or regional-language changes.
+- No migration will be applied yet.
+
+1) Prisma schema change
+Add a new model to api/prisma/schema.prisma:
+
+model AnalyticsEvent {
+  id        String   @id @default(uuid())
+  userId    String?
+  eventType String
+  eventName String
+  properties Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([eventName, createdAt])
+  @@index([createdAt])
+  @@map("analytics_events")
+}
+
+Suggested migration name:
+- add_analytics_events_table
+
+2) Files to modify
+Backend
+- api/prisma/schema.prisma
+- api/src/app.module.ts
+- api/src/auth/auth.service.ts
+- api/src/chatbot/chatbot.service.ts
+- api/src/exercise-logs/exercise-logs.service.ts
+- api/src/scan-reports/scan-reports.service.ts
+- api/src/posts/posts.service.ts
+- api/src/nanny/nanny.service.ts
+- api/src/affirmations/affirmations.service.ts
+- api/src/analytics/analytics.service.ts (new)
+- api/src/analytics/analytics.controller.ts (new)
+- api/src/analytics/analytics.module.ts (new)
+
+Frontend
+- web/src/app/admin/page.tsx
+- web/src/lib/api-client.ts
+- web/src/services/auth.service.ts (or a new analytics helper)
+
+3) New API routes
+Admin-only read endpoints:
+- GET /analytics/summary
+- GET /analytics/feature-breakdown
+- GET /analytics/retention
+
+Optional internal write endpoint:
+- POST /analytics/events
+
+I would avoid exposing a public write route and instead record events server-side from existing flows.
+
+4) What will be logged
+A. Signup / account creation
+- Event: account_created
+- Properties: source, signupDate
+
+B. Daily active sessions
+- Event: session_active
+- Properties: date
+
+C. Chat messages / RAG assistant
+- Event: chat_message_sent
+- Properties: source, responseSource, usedWebFallback, usedChroma, confidence
+
+D. Existing feature usage
+- Event names such as:
+  - feature_used:exercise_log
+  - feature_used:affirmation
+  - feature_used:scan_upload
+  - feature_used:community_post
+  - feature_used:nanny_trust_streak
+
+E. Retention signal
+- Derived from session_active events for day 2 / day 5 / day 10 return visits.
+
+5) Minimal implementation approach
+- Add one table: analytics_events
+- Add one service: AnalyticsService
+- Add one controller: AnalyticsController
+- Add one admin UI section in web/src/app/admin/page.tsx
+- Hook writes into existing services where the behavior already happens
+
+6) Admin UI plan
+Add a new card section on the existing admin page with:
+- signups
+- active today
+- chat messages
+- feature usage counts
+- response source breakdown
+- retention counts
+
+7) Safety / reversibility
+- Single table with flexible JSON payload
+- No change to production env vars or domains
+- No change to gestational-stage or language flows
+- Can be removed later by dropping the table and removing the wiring
+
+Next step
+- If this plan looks correct, I will proceed with implementation.

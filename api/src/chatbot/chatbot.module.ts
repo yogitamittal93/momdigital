@@ -7,6 +7,7 @@ import { ChatbotAuthGuard } from './chatbot-auth.guard';
 import { PrismaService } from 'prisma/prisma.service';
 import { DoctorQueueModule } from '../doctor-queue/doctor-queue.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { AnalyticsModule } from '../analytics/analytics.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     JwtModule.register({}),
     DoctorQueueModule,
     NotificationsModule,
+    AnalyticsModule,
   ],
   controllers: [ChatbotController],
   providers: [ChatbotService, PrismaService, ChatbotAuthGuard],

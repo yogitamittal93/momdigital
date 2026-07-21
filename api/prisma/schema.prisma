@@ -222,12 +222,29 @@ model ChatMessage {
 
   extractedData Json? // auto-synced profile data from NER
 
+  // Tracks whether the assistant reply was grounded by ChromaDB retrieval,
+  // DuckDuckGo web fallback, both, or neither (safety fallback).
+  // Values: "chromadb" | "chromadb+web" | "ddg_fallback" | "none" | null
+  // null = pre-feature messages or non-assistant rows (role = 'user')
+  ragSource String?
+
   createdAt DateTime @default(now())
 
   @@index([userId])
   @@map("chat_messages")
 }
+model AnalyticsEvent {
+  id        String   @id @default(uuid())
+  userId    String?  // null = pre-auth events (future use)
+  eventName String   // e.g. "signup_completed", "chat_message_sent"
+  metadata  Json?    // e.g. { method: "email" } or { ragSource: "chromadb" }
+  createdAt DateTime @default(now())
 
+  @@index([userId])
+  @@index([eventName])
+  @@index([createdAt])
+  @@map("analytics_events")
+}
 // ═══════════════════════════════════════════════════════════════════
 // CONTENT REQUESTS — questions routed to experts
 // ═══════════════════════════════════════════════════════════════════

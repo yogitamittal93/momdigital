@@ -4,6 +4,7 @@ import logging
 from collections import defaultdict
 from dotenv import load_dotenv
 from processors.web_serach import search_health_web
+from processors.language_detector import detect_language, build_language_instruction
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -547,6 +548,16 @@ def generate_response(
     passed_history: list = None,
 ) -> dict:
     try:
+        # ── Step -1: Language Detection ────────────────────────────────────────
+        # Detect BEFORE ChromaDB queries so we can log early. Retrieval stays
+        # in English regardless — only the Groq response language changes.
+        lang_info = detect_language(question)
+        if lang_info["is_supported_non_english"]:
+            logger.info(
+                "Non-English input detected: %s (%s, confidence=%.2f)",
+                lang_info["lang_name"], lang_info["lang_code"], lang_info["confidence"],
+            )
+
         # ── Step 0: Product / Ingredient Intelligence ──────────────────────────
         ingredient_info = {"product_name": "", "ingredients": [], "is_product_query": False}
         if _is_product_question(question):
@@ -840,10 +851,18 @@ Do NOT cite commercial supplement review sites or sponsored news as references.
 Use these friendly source names in the References section: {', '.join(all_sources_friendly)}"""
 
         # ── Call Groq ──────────────────────────────────────────────────────
+        # Build the effective system prompt: base prompt + optional language
+        # instruction if the user wrote in a supported non-English language.
+        effective_system_prompt = GROUNDED_SYSTEM_PROMPT
+        if lang_info["is_supported_non_english"]:
+            effective_system_prompt += build_language_instruction(
+                lang_info["lang_code"], lang_info["lang_name"]
+            )
+
         response = _get_groq_client().chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
-                {"role": "system", "content": GROUNDED_SYSTEM_PROMPT},
+                {"role": "system", "content": effective_system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
             max_tokens=1100,   # increased from 900 to give the new format room to breathe
@@ -881,6 +900,7 @@ Use these friendly source names in the References section: {', '.join(all_source
             "hallucination_check": "passed",
             "product_query": ingredient_info.get("is_product_query", False),
             "ingredients_analysed": ingredient_info.get("ingredients", []),
+            "detected_language": lang_info["lang_code"],
             "web_sources": {
                 "abstracts": len(abstract_results),
                 "reviews": len(review_results),

@@ -26,6 +26,7 @@ import { MoodLogsModule } from './mood-logs/mood-logs.module';
 import { KickLogsModule } from './kick-logs/kick-logs.module';
 import { HabitsModule } from './habits/habits.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 
 import { validateConfig } from './common/config.validation';
 
@@ -64,6 +65,7 @@ import { validateConfig } from './common/config.validation';
     DoctorQueueModule,
     RoutingModule,
     NotificationsModule,
+    AnalyticsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
