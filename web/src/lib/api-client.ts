@@ -63,6 +63,29 @@ export type ApiUser = {
 
 export type MeResponse = { user: ApiUser };
 
+/**
+ * Bumped on successful login/logout so in-flight 401→refresh handlers from a
+ * pre-login /auth/me probe cannot redirect the user back to /login after a
+ * successful sign-in (the stale-cookie race that breaks normal Chrome but not
+ * incognito).
+ */
+let authEpoch = 0;
+
+export function bumpAuthEpoch() {
+  authEpoch += 1;
+}
+
+function isPublicAuthPath(pathname: string): boolean {
+  return (
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/register") ||
+    pathname.startsWith("/forgot-password") ||
+    pathname.startsWith("/reset-password") ||
+    pathname.startsWith("/pro/login") ||
+    pathname.startsWith("/pro/register")
+  );
+}
+
 function parseReply(data: Record<string, unknown>): string {
   const nested = (data.data ?? {}) as Record<string, unknown>;
   const candidates = [
@@ -112,6 +135,8 @@ export async function apiCall(
     headers.Authorization = `Bearer ${token}`;
   }
 
+  const epochAtStart = authEpoch;
+
   let response = await fetch(apiUrl(endpoint), {
     ...options,
     headers,
@@ -129,7 +154,14 @@ export async function apiCall(
         credentials: "include",
       });
     } else if (typeof window !== "undefined") {
-      window.location.href = "/login";
+      // Skip redirect if login already succeeded, or if we're already on an
+      // auth page (avoids reload loops from the root UserProfileProvider probe).
+      if (
+        epochAtStart === authEpoch &&
+        !isPublicAuthPath(window.location.pathname)
+      ) {
+        window.location.href = "/login";
+      }
       return null;
     }
   }
@@ -152,9 +184,10 @@ export async function apiCall(
   }
 
   if (!response.ok) {
+    const rawMessage = data.message;
     const msg =
-      (data.message as string) ||
-      (Array.isArray(data.message) ? (data.message as string[]).join(", ") : null) ||
+      (Array.isArray(rawMessage) ? rawMessage.join(", ") : null) ||
+      (typeof rawMessage === "string" ? rawMessage : null) ||
       `API error: ${response.status}`;
     throw new Error(msg);
   }

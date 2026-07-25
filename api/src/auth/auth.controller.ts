@@ -63,10 +63,39 @@ export class AuthController {
     return {
       httpOnly: true,
       secure: isProduction,
+      // SameSite=None is required for cross-origin credentialed requests
+      // (Vercel frontend ↔ API host). Host-only cookies (no Domain) so the
+      // jar is scoped to whatever host answered (api.momdigital.live).
       sameSite: isProduction ? ('none' as const) : ('lax' as const),
       maxAge,
       path: '/',
     };
+  }
+
+  /**
+   * Clear every plausible attribute variant. Browsers only clear a cookie when
+   * Path/Secure/SameSite match what was originally set — old deployments may
+   * have left Lax or non-Secure copies that would otherwise linger and race
+   * with the new session (especially painful in Capacitor WebViews).
+   */
+  private clearSessionCookies(res: Response) {
+    const variants: Array<{
+      path: string;
+      httpOnly: boolean;
+      secure: boolean;
+      sameSite: 'lax' | 'none' | 'strict';
+    }> = [
+      { path: '/', httpOnly: true, secure: true, sameSite: 'none' },
+      { path: '/', httpOnly: true, secure: true, sameSite: 'lax' },
+      { path: '/', httpOnly: true, secure: false, sameSite: 'lax' },
+      { path: '/', httpOnly: true, secure: false, sameSite: 'none' },
+      { path: '/', httpOnly: true, secure: true, sameSite: 'strict' },
+      { path: '/', httpOnly: true, secure: false, sameSite: 'strict' },
+    ];
+    for (const opts of variants) {
+      res.clearCookie('access_token', opts);
+      res.clearCookie('refresh_token', opts);
+    }
   }
 
   private setSessionCookies(
@@ -74,6 +103,9 @@ export class AuthController {
     accessToken: string,
     refreshToken: string,
   ) {
+    // Wipe any stale/conflicting cookies before writing the new pair so only
+    // one valid session cookie exists per name after login/refresh.
+    this.clearSessionCookies(res);
     const cookieOptions = this.getCookieOptions(15 * 60 * 1000);
     res.cookie('access_token', accessToken, cookieOptions);
     res.cookie(
@@ -81,15 +113,6 @@ export class AuthController {
       refreshToken,
       this.getCookieOptions(7 * 24 * 60 * 60 * 1000),
     );
-  }
-
-  private clearSessionCookies(res: Response) {
-    const cookieOptions = {
-      ...this.getCookieOptions(0),
-      expires: new Date(0),
-    };
-    res.clearCookie('access_token', cookieOptions);
-    res.clearCookie('refresh_token', cookieOptions);
   }
 
   /** Public origin for uploaded files (no /api prefix). */
@@ -209,13 +232,18 @@ export class AuthController {
   }
 
   @Post('logout')
-  @UseGuards(JwtGuard)
   @HttpCode(HttpStatus.OK)
   async logoutCurrentSession(
-    @Req() req: Request & { user: JwtPayload },
+    @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    await this.authService.logoutSession(req.user.userId, req.user.sessionId);
+    const cookies = req.cookies as Record<string, string> | undefined;
+    // Always clear cookies (even if tokens are expired) so Capacitor/Chrome
+    // profiles cannot keep a stale refresh_token that races the next login.
+    await this.authService.logoutFromTokens(
+      cookies?.access_token,
+      cookies?.refresh_token,
+    );
     this.clearSessionCookies(res);
     return { message: 'Logged out from current device' };
   }

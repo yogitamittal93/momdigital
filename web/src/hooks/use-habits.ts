@@ -55,6 +55,7 @@ export function useHabits() {
   const [todaySummary, setTodaySummary] = useState<TodaySummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null); // habitId being saved
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const fetchAll = useCallback(async () => {
     if (!user) {
@@ -69,8 +70,8 @@ export function useHabits() {
       ]);
       setHabits(habitsData ?? []);
       setTodaySummary(todayData ?? null);
-    } catch {
-      // silently fail
+    } catch (e: unknown) {
+      console.error("[habits] fetch failed", e);
     } finally {
       setLoading(false);
     }
@@ -89,6 +90,7 @@ export function useHabits() {
       )?.completedToday;
 
       setSaving(habit.id);
+      setActionError(null);
       try {
         if (alreadyDone) {
           await api.delete(`/habits/${habit.id}/log/${today}`);
@@ -130,8 +132,10 @@ export function useHabits() {
               : prev
           );
         }
-      } catch {
-        // silently fail — user can retry
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : "Failed to update habit";
+        console.error("[habits] toggle failed", e);
+        setActionError(msg);
       } finally {
         setSaving(null);
       }
@@ -153,27 +157,39 @@ export function useHabits() {
       loadingPhaseDays?: number;
       loadingStartDate?: string;
     }) => {
-      const created = (await api.post("/habits", dto)) as Habit;
-      setHabits((prev) => [...prev, created]);
-      await fetchAll(); // refresh today summary
-      return created;
+      setActionError(null);
+      try {
+        const created = (await api.post("/habits", dto)) as Habit;
+        setHabits((prev) => [...prev, created]);
+        await fetchAll(); // refresh today summary
+        return created;
+      } catch (e: unknown) {
+        console.error("[habits] create failed", e);
+        throw e instanceof Error ? e : new Error("Failed to create habit");
+      }
     },
     [fetchAll]
   );
 
   /** Delete a habit */
   const deleteHabit = useCallback(async (habitId: string) => {
-    await api.delete(`/habits/${habitId}`);
-    setHabits((prev) => prev.filter((h) => h.id !== habitId));
-    setTodaySummary((prev) =>
-      prev
-        ? {
-            ...prev,
-            habits: prev.habits.filter((h) => h.id !== habitId),
-            total: prev.total - 1,
-          }
-        : prev
-    );
+    setActionError(null);
+    try {
+      await api.delete(`/habits/${habitId}`);
+      setHabits((prev) => prev.filter((h) => h.id !== habitId));
+      setTodaySummary((prev) =>
+        prev
+          ? {
+              ...prev,
+              habits: prev.habits.filter((h) => h.id !== habitId),
+              total: prev.total - 1,
+            }
+          : prev
+      );
+    } catch (e: unknown) {
+      console.error("[habits] delete failed", e);
+      throw e instanceof Error ? e : new Error("Failed to delete habit");
+    }
   }, []);
 
   return {
@@ -181,6 +197,7 @@ export function useHabits() {
     todaySummary,
     loading,
     saving,
+    actionError,
     fetchAll,
     toggleHabit,
     createHabit,

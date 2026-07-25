@@ -13,7 +13,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 // ChatWindow removed (relocated to dedicated /chat route)
 import { fetchMe, ApiUser } from "@/lib/api-client";
-import { updateProfile, uploadAvatar } from "@/services/auth.service";
+import { updateProfile, uploadAvatar, logoutUser } from "@/services/auth.service";
+import { bumpAuthEpoch } from "@/lib/api-client";
 
 // ─── Role helpers ─────────────────────────────────────────────────────────────
 
@@ -561,7 +562,16 @@ export default function ProfilePage() {
           {/* ── Sign out ────────────────────────────────────────────────── */}
           <Button
             variant="outline"
-            onClick={() => router.push("/login")}
+            onClick={async () => {
+              try {
+                await logoutUser();
+              } catch {
+                // Still leave the client session even if the API call fails
+                // (e.g. already-expired access token).
+              }
+              bumpAuthEpoch();
+              window.location.href = "/login";
+            }}
             className="w-full rounded-full border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground gap-2"
           >
             <LogOut className="w-4 h-4" />

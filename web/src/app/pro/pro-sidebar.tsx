@@ -135,12 +135,23 @@ export function ProSidebar({ user }: ProSidebarProps) {
 
       {/* Logout */}
       <div style={{ padding: "12px 20px", borderTop: "1px solid var(--border)" }}>
-        <a
-          href="/api/auth/logout"
+        <button
+          type="button"
+          onClick={async () => {
+            try {
+              const { logoutUser } = await import("@/services/auth.service");
+              const { bumpAuthEpoch } = await import("@/lib/api-client");
+              await logoutUser();
+              bumpAuthEpoch();
+            } catch {
+              // Still navigate away even if logout API fails.
+            }
+            window.location.href = "/pro/login";
+          }}
           style={{
             display: "flex", alignItems: "center", gap: 10,
-            color: "var(--muted-foreground)", textDecoration: "none",
-            fontSize: "0.85rem", padding: "8px 0",
+            color: "var(--muted-foreground)", background: "none", border: "none",
+            fontSize: "0.85rem", padding: "8px 0", cursor: "pointer", width: "100%",
             transition: "color 0.15s ease",
           }}
           onMouseEnter={(e) => (e.currentTarget.style.color = "var(--destructive)")}
@@ -148,7 +159,7 @@ export function ProSidebar({ user }: ProSidebarProps) {
         >
           <LogOut size={16} />
           Sign Out
-        </a>
+        </button>
       </div>
     </aside>
   );

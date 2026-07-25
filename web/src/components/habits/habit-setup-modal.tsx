@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { X, Plus, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -62,6 +62,7 @@ export function HabitSetupModal({ existingHabits, onAdd, onDelete, onClose }: Pr
   const [tab, setTab] = useState<"suggested" | "custom">("suggested");
   const [saving, setSaving] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   // Custom form state
   const [custom, setCustom] = useState({
@@ -79,16 +80,21 @@ export function HabitSetupModal({ existingHabits, onAdd, onDelete, onClose }: Pr
   const handleAddSuggested = async (s: typeof SUGGESTED_HABITS[0]) => {
     if (existingNames.has(s.name.toLowerCase())) return;
     setSaving(s.name);
+    setError(null);
     try {
       await onAdd({ ...s, sortOrder: existingHabits.length });
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to add habit");
     } finally {
       setSaving(null);
     }
   };
 
-  const handleAddCustom = async () => {
+  const handleAddCustom = async (e?: FormEvent) => {
+    e?.preventDefault();
     if (!custom.name.trim()) return;
     setSaving("custom");
+    setError(null);
     try {
       await onAdd({
         name: custom.name.trim(),
@@ -102,6 +108,8 @@ export function HabitSetupModal({ existingHabits, onAdd, onDelete, onClose }: Pr
         sortOrder: existingHabits.length,
       });
       setCustom({ name: "", emoji: "⭐", category: "custom", targetQuantity: "", unit: "", hasLoadingPhase: false, loadingPhaseDays: "" });
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to add habit");
     } finally {
       setSaving(null);
     }
@@ -109,7 +117,14 @@ export function HabitSetupModal({ existingHabits, onAdd, onDelete, onClose }: Pr
 
   const handleDelete = async (id: string) => {
     setDeleting(id);
-    try { await onDelete(id); } finally { setDeleting(null); }
+    setError(null);
+    try {
+      await onDelete(id);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to delete habit");
+    } finally {
+      setDeleting(null);
+    }
   };
 
   return (
@@ -186,20 +201,21 @@ export function HabitSetupModal({ existingHabits, onAdd, onDelete, onClose }: Pr
               </div>
             </>
           ) : (
-            <div className="space-y-4">
+            <form className="space-y-4" onSubmit={handleAddCustom}>
               {/* Emoji picker */}
               <div>
                 <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Emoji</label>
                 <div className="flex flex-wrap gap-2 mt-2">
-                  {EMOJIS.map((e) => (
+                  {EMOJIS.map((em) => (
                     <button
-                      key={e}
-                      onClick={() => setCustom((p) => ({ ...p, emoji: e }))}
+                      key={em}
+                      type="button"
+                      onClick={() => setCustom((p) => ({ ...p, emoji: em }))}
                       className={`w-9 h-9 rounded-xl text-lg flex items-center justify-center transition-all ${
-                        custom.emoji === e ? "bg-primary/20 ring-2 ring-primary" : "hover:bg-muted"
+                        custom.emoji === em ? "bg-primary/20 ring-2 ring-primary" : "hover:bg-muted"
                       }`}
                     >
-                      {e}
+                      {em}
                     </button>
                   ))}
                 </div>
@@ -223,6 +239,7 @@ export function HabitSetupModal({ existingHabits, onAdd, onDelete, onClose }: Pr
                   {CATEGORIES.map((c) => (
                     <button
                       key={c.value}
+                      type="button"
                       onClick={() => setCustom((p) => ({ ...p, category: c.value }))}
                       className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
                         custom.category === c.value
@@ -268,6 +285,7 @@ export function HabitSetupModal({ existingHabits, onAdd, onDelete, onClose }: Pr
                     <p className="text-xs text-muted-foreground">For supplements like creatine that have a loading phase</p>
                   </div>
                   <button
+                    type="button"
                     onClick={() => setCustom((p) => ({ ...p, hasLoadingPhase: !p.hasLoadingPhase }))}
                     className={`relative w-11 h-6 rounded-full transition-colors ${custom.hasLoadingPhase ? "bg-primary" : "bg-muted"}`}
                   >
@@ -289,15 +307,28 @@ export function HabitSetupModal({ existingHabits, onAdd, onDelete, onClose }: Pr
                 )}
               </div>
 
+              {error && (
+                <p className="text-sm text-destructive bg-destructive/10 rounded-xl px-3 py-2" role="alert">
+                  {error}
+                </p>
+              )}
+
               <Button
+                type="submit"
                 className="w-full rounded-full"
                 disabled={!custom.name.trim() || saving === "custom"}
-                onClick={handleAddCustom}
               >
                 {saving === "custom" ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
                 Add Habit
               </Button>
-            </div>
+            </form>
+          )}
+
+          {/* Error on suggested tab */}
+          {tab === "suggested" && error && (
+            <p className="text-sm text-destructive bg-destructive/10 rounded-xl px-3 py-2 mt-3" role="alert">
+              {error}
+            </p>
           )}
         </div>
 

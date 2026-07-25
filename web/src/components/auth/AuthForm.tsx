@@ -1,6 +1,5 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { loginUser, signupUser } from "@/services/auth.service";
 import { useForm } from "react-hook-form";
@@ -11,6 +10,7 @@ import { Input } from "../ui/input";
 import { Button } from "../ui/button";
 import { Checkbox } from "../ui/checkbox";
 import { getApiBase } from "@/lib/api-url";
+import { bumpAuthEpoch } from "@/lib/api-client";
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
 
@@ -107,7 +107,6 @@ export default function AuthForm({ type }: { type: "login" | "register" }) {
   const isLoginMode = type === "login";
   const [isLogin, setIsLogin] = useState(isLoginMode);
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
 
   const form = useForm<AuthFormValues>({
     resolver: zodResolver(isLogin ? loginSchema : signupSchema),
@@ -131,13 +130,15 @@ export default function AuthForm({ type }: { type: "login" | "register" }) {
           babyBirthDate: data.babyBirthDate || undefined,
         });
       }
-      router.push("/dashboard");
+      // Invalidate any in-flight pre-login /me→refresh handlers, then full
+      // reload so UserProfileProvider remounts with the new session cookies.
+      bumpAuthEpoch();
+      window.location.href = "/dashboard";
     } catch (error: unknown) {
       const err = error as { message?: string; response?: { data?: { message?: string } } };
       form.setError("root", {
         message: err.message || err.response?.data?.message || "Something went wrong",
       });
-    } finally {
       setLoading(false);
     }
   };

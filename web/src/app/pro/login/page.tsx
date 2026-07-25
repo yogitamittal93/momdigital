@@ -27,6 +27,9 @@ export default function ProLoginPage() {
       );
       const data = await res.json();
       if (!res.ok) throw new Error(data.message ?? "Login failed");
+      // Invalidate any in-flight pre-login refresh handlers before navigating.
+      const { bumpAuthEpoch } = await import("@/lib/api-client");
+      bumpAuthEpoch();
       // Redirect non-mothers to pro dashboard
       if (data.user?.role === "MOTHER") {
         window.location.href = "/dashboard";

@@ -36,9 +36,16 @@ export function UserProfileProvider({ children }: { children: React.ReactNode })
 
   const load = useCallback(() => {
     setLoading(true);
+    setError(null);
     fetchMe()
-      .then((u) => setUser(u))
-      .catch((e: Error) => setError(e.message))
+      .then((u) => {
+        setUser(u);
+        setError(null);
+      })
+      .catch((e: Error) => {
+        setUser(null);
+        setError(e.message);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -46,10 +53,16 @@ export function UserProfileProvider({ children }: { children: React.ReactNode })
     let active = true;
     fetchMe()
       .then((u) => {
-        if (active) setUser(u);
+        if (active) {
+          setUser(u);
+          setError(null);
+        }
       })
       .catch((e: Error) => {
-        if (active) setError(e.message);
+        if (active) {
+          setUser(null);
+          setError(e.message);
+        }
       })
       .finally(() => {
         if (active) setLoading(false);

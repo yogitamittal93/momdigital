@@ -8,6 +8,17 @@ const api = axios.create({
   withCredentials: true,
 });
 
+function isPublicAuthPath(pathname: string): boolean {
+  return (
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/register") ||
+    pathname.startsWith("/forgot-password") ||
+    pathname.startsWith("/reset-password") ||
+    pathname.startsWith("/pro/login") ||
+    pathname.startsWith("/pro/register")
+  );
+}
+
 api.interceptors.response.use(
   (res) => res,
   async (error) => {
@@ -19,7 +30,10 @@ api.interceptors.response.use(
         await axios.post(`${baseURL}/auth/refresh`, {}, { withCredentials: true });
         return api(original);
       } catch {
-        if (typeof window !== "undefined") {
+        if (
+          typeof window !== "undefined" &&
+          !isPublicAuthPath(window.location.pathname)
+        ) {
           window.location.href = "/login";
         }
       }

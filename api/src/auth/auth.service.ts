@@ -316,6 +316,40 @@ export class AuthService {
     await this.redisService.del(this.profileCacheKey(userId));
   }
 
+  /**
+   * Best-effort session revoke from cookies. Used by logout so cookies can
+   * always be cleared even when the access token is already expired.
+   */
+  async logoutFromTokens(accessToken?: string, refreshToken?: string) {
+    const tryDecode = (token: string, secretEnv: string) => {
+      try {
+        return this.jwtService.verify<{ userId: string; sessionId: string }>(
+          token,
+          { secret: this.configService.getOrThrow<string>(secretEnv) },
+        );
+      } catch {
+        return null;
+      }
+    };
+
+    const payload =
+      (accessToken
+        ? tryDecode(accessToken, 'JWT_ACCESS_SECRET')
+        : null) ??
+      (refreshToken
+        ? tryDecode(refreshToken, 'JWT_REFRESH_SECRET')
+        : null);
+
+    if (!payload?.sessionId || !payload.userId) return;
+
+    await this.prisma.session
+      .deleteMany({
+        where: { id: payload.sessionId, userId: payload.userId },
+      })
+      .catch(() => undefined);
+    await this.redisService.del(this.profileCacheKey(payload.userId));
+  }
+
   // ─── Expert Registration ───────────────────────────────────────────────────
 
   async registerExpert(dto: RegisterExpertDto, credentialUrl?: string) {

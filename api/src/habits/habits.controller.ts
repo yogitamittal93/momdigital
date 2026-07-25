@@ -10,25 +10,75 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import {
+  IsBoolean,
+  IsDateString,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+  Min,
+} from 'class-validator';
 import { JwtGuard } from 'src/auth/jwt.gaurd';
 import { HabitsService } from './habits.service';
 
-// Re-export interfaces as classes for NestJS emitDecoratorMetadata compatibility
+/** Decorators are required — global ValidationPipe uses whitelist + forbidNonWhitelisted. */
 export class CreateHabitBody {
+  @IsString()
+  @IsNotEmpty()
   name!: string;
+
+  @IsOptional()
+  @IsString()
   emoji?: string;
+
+  @IsOptional()
+  @IsString()
   category?: string;
+
+  @IsOptional()
+  @IsString()
   color?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
   targetQuantity?: number;
+
+  @IsOptional()
+  @IsString()
   unit?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
   sortOrder?: number;
+
+  @IsOptional()
+  @IsBoolean()
   hasLoadingPhase?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
   loadingPhaseDays?: number;
+
+  @IsOptional()
+  @IsDateString()
   loadingStartDate?: string;
 }
 
 export class LogHabitBody {
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'date must be YYYY-MM-DD',
+  })
   date!: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
   quantity?: number;
 }
 

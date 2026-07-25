@@ -248,6 +248,7 @@ export default function BodyRecoveryPage() {
     todaySummary,
     loading: habitsLoading,
     saving: habitSaving,
+    actionError: habitActionError,
     toggleHabit,
     createHabit,
     deleteHabit,
@@ -461,6 +462,7 @@ export default function BodyRecoveryPage() {
                 todayTotal={todaySummary?.total ?? 0}
                 saving={habitSaving}
                 loading={habitsLoading}
+                error={habitActionError}
                 onToggle={toggleHabit}
                 onOpenSetup={() => setHabitSetupOpen(true)}
               />

@@ -107,6 +107,7 @@ interface Props {
   todayTotal: number;
   saving: string | null;
   loading: boolean;
+  error?: string | null;
   onToggle: (h: Habit) => void;
   onOpenSetup: () => void;
 }
@@ -117,6 +118,7 @@ export function DailyHabitChecklist({
   todayTotal,
   saving,
   loading,
+  error,
   onToggle,
   onOpenSetup,
 }: Props) {
@@ -173,6 +175,12 @@ export function DailyHabitChecklist({
           </div>
         </div>
       </div>
+
+      {error && (
+        <p className="text-sm text-destructive bg-destructive/10 rounded-xl px-3 py-2" role="alert">
+          {error}
+        </p>
+      )}
 
       {/* Habit rows */}
       <div className="space-y-2">
