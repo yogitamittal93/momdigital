@@ -14,6 +14,9 @@ export const signupUser = (data: {
   babyBirthDate?: string;
 }) => api.post("/auth/register", data);
 
+/** Wipe host-only + legacy Domain auth cookies before a fresh login. */
+export const clearAuthCookies = () => api.post("/auth/clear-cookies");
+
 export const logoutUser = () => api.post("/auth/logout");
 export const fetchMe = () => api.get("/auth/me");
 export const updateProfile = (data: {

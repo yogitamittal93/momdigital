@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { loginUser, signupUser } from "@/services/auth.service";
+import { loginUser, signupUser, clearAuthCookies } from "@/services/auth.service";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -118,9 +118,20 @@ export default function AuthForm({ type }: { type: "login" | "register" }) {
 
   useEffect(() => { form.reset(); }, [isLogin, form]);
 
+  // Wipe stale/duplicate auth cookies as soon as the login page opens so a
+  // normal Chrome profile cannot send leftover Domain= / SameSite siblings.
+  useEffect(() => {
+    void clearAuthCookies().catch(() => {
+      // Best-effort — login can still overwrite host-only cookies.
+    });
+  }, []);
+
   const onSubmit = async (data: AuthFormValues) => {
     try {
       setLoading(true);
+      // Clear again immediately before login so Set-Cookie on login is the
+      // only session pair left in the jar for api.momdigital.live.
+      await clearAuthCookies().catch(() => undefined);
       if (isLogin) {
         await loginUser({ email: data.email, password: data.password });
       } else {

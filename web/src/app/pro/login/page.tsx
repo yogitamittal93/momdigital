@@ -16,6 +16,11 @@ export default function ProLoginPage() {
     setLoading(true);
     setError("");
     try {
+      const { bumpAuthEpoch } = await import("@/lib/api-client");
+      const { clearAuthCookies } = await import("@/services/auth.service");
+      // Wipe stale duplicates BEFORE login — never after (that clears the new session).
+      await clearAuthCookies().catch(() => undefined);
+
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL ?? ""}/auth/login`,
         {
@@ -27,8 +32,6 @@ export default function ProLoginPage() {
       );
       const data = await res.json();
       if (!res.ok) throw new Error(data.message ?? "Login failed");
-      // Invalidate any in-flight pre-login refresh handlers before navigating.
-      const { bumpAuthEpoch } = await import("@/lib/api-client");
       bumpAuthEpoch();
       // Redirect non-mothers to pro dashboard
       if (data.user?.role === "MOTHER") {

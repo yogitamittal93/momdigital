@@ -12,6 +12,8 @@ import {
   HttpStatus,
   UseInterceptors,
   UploadedFile,
+  UnauthorizedException,
+  UseGuards,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ConfigService } from '@nestjs/config';
@@ -38,8 +40,8 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 import { CareerPlanDto } from './dto/career-plan.dto';
 import type { Response, Request } from 'express';
 import { JwtPayload } from './jwt.gaurd';
-import { UseGuards } from '@nestjs/common';
 import { JwtGuard } from './jwt.gaurd';
+import { getCookieValuesPreferringLast } from './cookie.util';
 import { AdminGuard } from 'src/common/guards/admin.guard';
 import { GoogleOAuthGuard, GitHubOAuthGuard } from './guards/oauth.guard';
 import { PrismaService } from 'prisma/prisma.service';
@@ -63,38 +65,69 @@ export class AuthController {
     return {
       httpOnly: true,
       secure: isProduction,
-      // SameSite=None is required for cross-origin credentialed requests
-      // (Vercel frontend ↔ API host). Host-only cookies (no Domain) so the
-      // jar is scoped to whatever host answered (api.momdigital.live).
+      // SameSite=None is required for Capacitor (capacitor:// → API is
+      // cross-site). Browser same-site (momdigital.live ↔ api.) also accepts it.
       sameSite: isProduction ? ('none' as const) : ('lax' as const),
       maxAge,
       path: '/',
+      // Host-only (no Domain). Do NOT set Domain=.momdigital.live — that creates
+      // a second cookie identity that races with host-only copies in Chrome.
     };
   }
 
   /**
-   * Clear every plausible attribute variant. Browsers only clear a cookie when
-   * Path/Secure/SameSite match what was originally set — old deployments may
-   * have left Lax or non-Secure copies that would otherwise linger and race
-   * with the new session (especially painful in Capacitor WebViews).
+   * Clear host-only AND legacy Domain=.momdigital.live variants.
+   * Only call this on logout / explicit pre-login wipe — NEVER in the same
+   * response as setSessionCookies (flooding Set-Cookie confuses Chrome and can
+   * drop the newly set session pair).
    */
   private clearSessionCookies(res: Response) {
+    const names = ['access_token', 'refresh_token'] as const;
     const variants: Array<{
       path: string;
       httpOnly: boolean;
       secure: boolean;
       sameSite: 'lax' | 'none' | 'strict';
+      domain?: string;
     }> = [
       { path: '/', httpOnly: true, secure: true, sameSite: 'none' },
       { path: '/', httpOnly: true, secure: true, sameSite: 'lax' },
       { path: '/', httpOnly: true, secure: false, sameSite: 'lax' },
-      { path: '/', httpOnly: true, secure: false, sameSite: 'none' },
       { path: '/', httpOnly: true, secure: true, sameSite: 'strict' },
-      { path: '/', httpOnly: true, secure: false, sameSite: 'strict' },
+      // Legacy domain-scoped cookies from earlier experiments / misconfig
+      {
+        path: '/',
+        httpOnly: true,
+        secure: true,
+        sameSite: 'none',
+        domain: '.momdigital.live',
+      },
+      {
+        path: '/',
+        httpOnly: true,
+        secure: true,
+        sameSite: 'lax',
+        domain: '.momdigital.live',
+      },
+      {
+        path: '/',
+        httpOnly: true,
+        secure: true,
+        sameSite: 'none',
+        domain: 'momdigital.live',
+      },
+      {
+        path: '/',
+        httpOnly: true,
+        secure: true,
+        sameSite: 'none',
+        domain: 'api.momdigital.live',
+      },
     ];
-    for (const opts of variants) {
-      res.clearCookie('access_token', opts);
-      res.clearCookie('refresh_token', opts);
+    for (const name of names) {
+      for (const opts of variants) {
+        res.clearCookie(name, opts);
+      }
     }
   }
 
@@ -103,9 +136,7 @@ export class AuthController {
     accessToken: string,
     refreshToken: string,
   ) {
-    // Wipe any stale/conflicting cookies before writing the new pair so only
-    // one valid session cookie exists per name after login/refresh.
-    this.clearSessionCookies(res);
+    // Overwrite only — do not clearCookie in this response.
     const cookieOptions = this.getCookieOptions(15 * 60 * 1000);
     res.cookie('access_token', accessToken, cookieOptions);
     res.cookie(
@@ -188,11 +219,49 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const cookies = req.cookies as Record<string, string> | undefined;
-    const refreshToken = cookies?.refresh_token ?? '';
-    const tokens = await this.authService.refreshAccessToken(refreshToken);
+    const cookieHeader =
+      typeof req.headers.cookie === 'string' ? req.headers.cookie : undefined;
+    // Prefer later values; try each duplicate until one refresh succeeds.
+    const candidates = getCookieValuesPreferringLast(
+      cookieHeader,
+      'refresh_token',
+    );
+    if (candidates.length === 0) {
+      candidates.push(
+        (req.cookies as Record<string, string> | undefined)?.refresh_token ??
+          '',
+      );
+    }
+
+    let tokens: { access_token: string; refresh_token: string } | null = null;
+    let lastError: unknown;
+    for (const refreshToken of candidates) {
+      if (!refreshToken) continue;
+      try {
+        tokens = await this.authService.refreshAccessToken(refreshToken);
+        break;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    if (!tokens) {
+      throw lastError ?? new UnauthorizedException('Refresh token is required');
+    }
+
     this.setSessionCookies(res, tokens.access_token, tokens.refresh_token);
     return { message: 'Token refreshed' };
+  }
+
+  /**
+   * Public wipe of auth cookies (all attribute variants). Call BEFORE login so
+   * the login Set-Cookie response is not competing with stale jar entries.
+   * Does not require a valid session.
+   */
+  @Post('clear-cookies')
+  @HttpCode(HttpStatus.OK)
+  clearCookies(@Res({ passthrough: true }) res: Response) {
+    this.clearSessionCookies(res);
+    return { message: 'Auth cookies cleared' };
   }
 
   @Get('me')
@@ -237,13 +306,22 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const cookies = req.cookies as Record<string, string> | undefined;
-    // Always clear cookies (even if tokens are expired) so Capacitor/Chrome
-    // profiles cannot keep a stale refresh_token that races the next login.
-    await this.authService.logoutFromTokens(
-      cookies?.access_token,
-      cookies?.refresh_token,
+    const cookieHeader =
+      typeof req.headers.cookie === 'string' ? req.headers.cookie : undefined;
+    const accessTokens = getCookieValuesPreferringLast(
+      cookieHeader,
+      'access_token',
     );
+    const refreshTokens = getCookieValuesPreferringLast(
+      cookieHeader,
+      'refresh_token',
+    );
+    // Best-effort revoke using any cookie value that still decodes.
+    for (const access of accessTokens.length ? accessTokens : [undefined]) {
+      for (const refresh of refreshTokens.length ? refreshTokens : [undefined]) {
+        await this.authService.logoutFromTokens(access, refresh);
+      }
+    }
     this.clearSessionCookies(res);
     return { message: 'Logged out from current device' };
   }

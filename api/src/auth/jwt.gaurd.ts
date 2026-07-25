@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { UserRole, ExpertStatus } from '@prisma/client';
 
 import type { Request } from 'express';
+import { getCookieValuesPreferringLast } from './cookie.util';
 
 export interface JwtPayload {
   userId: string;
@@ -38,19 +39,30 @@ export class JwtGuard implements CanActivate {
       return true;
     }
 
-    const cookies = request.cookies as Record<string, string> | undefined;
-    const token = cookies?.access_token;
+    const cookieHeader =
+      typeof request.headers.cookie === 'string'
+        ? request.headers.cookie
+        : undefined;
+    const tokens = getCookieValuesPreferringLast(cookieHeader, 'access_token');
 
-    if (!token) throw new UnauthorizedException('No token provided');
-
-    try {
-      const decoded = this.jwtService.verify<JwtPayload>(token, {
-        secret: this.configService.getOrThrow<string>('JWT_ACCESS_SECRET'),
-      });
-      request.user = decoded;
-      return true;
-    } catch {
-      throw new UnauthorizedException('Invalid or expired token');
+    if (tokens.length === 0) {
+      throw new UnauthorizedException('No token provided');
     }
+
+    const secret = this.configService.getOrThrow<string>('JWT_ACCESS_SECRET');
+
+    // Try every duplicate access_token until one verifies. Stale siblings from
+    // older Domain/SameSite configs must not block a valid new session cookie.
+    for (const token of tokens) {
+      try {
+        const decoded = this.jwtService.verify<JwtPayload>(token, { secret });
+        request.user = decoded;
+        return true;
+      } catch {
+        // try next duplicate
+      }
+    }
+
+    throw new UnauthorizedException('Invalid or expired token');
   }
 }

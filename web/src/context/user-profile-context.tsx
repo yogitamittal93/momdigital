@@ -7,6 +7,7 @@ import {
   useEffect,
   useState,
 } from "react";
+import { usePathname } from "next/navigation";
 import { fetchMe, type ApiUser } from "@/lib/api-client";
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -27,9 +28,22 @@ const UserProfileContext = createContext<UserProfileContextValue>({
   refreshUser: () => {},
 });
 
+function isPublicAuthPath(pathname: string | null): boolean {
+  if (!pathname) return false;
+  return (
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/register") ||
+    pathname.startsWith("/forgot-password") ||
+    pathname.startsWith("/reset-password") ||
+    pathname.startsWith("/pro/login") ||
+    pathname.startsWith("/pro/register")
+  );
+}
+
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 export function UserProfileProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const [user, setUser] = useState<ApiUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +64,17 @@ export function UserProfileProvider({ children }: { children: React.ReactNode })
   }, []);
 
   useEffect(() => {
+    // Never probe /auth/me on login/register — that fires a 401→refresh with
+    // whatever stale cookies are in a normal Chrome profile and races login.
+    if (isPublicAuthPath(pathname)) {
+      setUser(null);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+
     let active = true;
+    setLoading(true);
     fetchMe()
       .then((u) => {
         if (active) {
@@ -70,7 +94,7 @@ export function UserProfileProvider({ children }: { children: React.ReactNode })
     return () => {
       active = false;
     };
-  }, []);
+  }, [pathname]);
 
   const refreshUser = useCallback(() => {
     load();

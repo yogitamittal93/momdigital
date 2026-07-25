@@ -1,23 +1,8 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from 'prisma/prisma.service';
+import type { CreateHabitDto, LogHabitDto } from './habit.dto';
 
-export interface CreateHabitDto {
-  name: string;
-  emoji?: string;
-  category?: string;
-  color?: string;
-  targetQuantity?: number;
-  unit?: string;
-  sortOrder?: number;
-  hasLoadingPhase?: boolean;
-  loadingPhaseDays?: number;
-  loadingStartDate?: string; // ISO string
-}
-
-export interface LogHabitDto {
-  date: string;        // YYYY-MM-DD
-  quantity?: number;
-}
+export type { CreateHabitDto, LogHabitDto } from './habit.dto';
 
 @Injectable()
 export class HabitsService {

@@ -7,6 +7,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { JwtPayload } from 'src/auth/jwt.gaurd';
+import { getCookieValuesPreferringLast } from 'src/auth/cookie.util';
 
 import type { Request } from 'express';
 
@@ -29,26 +30,39 @@ export class ChatbotAuthGuard implements CanActivate {
       return true;
     }
 
-    const cookies = request.cookies as Record<string, string> | undefined;
-    const cookieToken = cookies?.access_token;
+    const cookieHeader =
+      typeof request.headers.cookie === 'string'
+        ? request.headers.cookie
+        : undefined;
+    const cookieTokens = getCookieValuesPreferringLast(
+      cookieHeader,
+      'access_token',
+    );
     const authHeader = request.headers['authorization'];
     const bearerToken = authHeader?.startsWith('Bearer ')
       ? authHeader.slice(7)
       : undefined;
-    const token = cookieToken || bearerToken;
 
-    if (!token) {
+    const candidates = [
+      ...cookieTokens,
+      ...(bearerToken ? [bearerToken] : []),
+    ];
+
+    if (candidates.length === 0) {
       throw new UnauthorizedException('No token provided');
     }
 
-    try {
-      const decoded = this.jwtService.verify<JwtPayload>(token, {
-        secret: this.configService.getOrThrow<string>('JWT_ACCESS_SECRET'),
-      });
-      request.user = decoded;
-      return true;
-    } catch {
-      throw new UnauthorizedException('Invalid or expired token');
+    const secret = this.configService.getOrThrow<string>('JWT_ACCESS_SECRET');
+    for (const token of candidates) {
+      try {
+        const decoded = this.jwtService.verify<JwtPayload>(token, { secret });
+        request.user = decoded;
+        return true;
+      } catch {
+        // try next
+      }
     }
+
+    throw new UnauthorizedException('Invalid or expired token');
   }
 }

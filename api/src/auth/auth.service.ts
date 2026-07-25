@@ -245,11 +245,12 @@ export class AuthService {
       );
 
       if (!isMatch) {
-        await this.prisma.session.delete({
-          where: { id: session.id },
-        });
-
-        throw new UnauthorizedException('Token reuse detected');
+        // Do NOT delete the session here when the presented token simply does
+        // not match — duplicate stale cookies in Chrome often send an old JWT
+        // alongside a valid one. Deleting on mismatch would destroy the live
+        // session if we tried the stale cookie first. True reuse detection
+        // belongs to a dedicated single-use rotation check with jti tracking.
+        throw new UnauthorizedException('Invalid refresh token');
       }
 
       const tokens = this.generateTokens(
@@ -269,7 +270,8 @@ export class AuthService {
       });
 
       return tokens;
-    } catch {
+    } catch (err) {
+      if (err instanceof UnauthorizedException) throw err;
       throw new UnauthorizedException('Invalid refresh token');
     }
   }
