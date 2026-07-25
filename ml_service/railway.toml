@@ -2,6 +2,9 @@
 dockerfilePath = "Dockerfile"
 
 [deploy]
+# Reserved for production scaling (>100 active users):
+# Set sleepApplication = false (or remove this line) when upgrading to always-on.
+sleepApplication = true
 healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"

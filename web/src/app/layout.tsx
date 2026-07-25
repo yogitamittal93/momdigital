@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Inter, Quicksand } from "next/font/google";
 import "./globals.css";
 import "../styles/theme.css"; // your file
@@ -14,6 +15,16 @@ const quicksand = Quicksand({
   subsets: ["latin"],
   variable: "--font-display",
 });
+
+export const metadata: Metadata = {
+  title: "MomDigital — Maternal & Infant Health Companion",
+  description:
+    "MomDigital supports mothers through pregnancy and early parenthood with AI-powered health guidance, expert advice, and community care.",
+  icons: {
+    icon: "/icon.png",
+    apple: "/apple-icon.png",
+  },
+};
 
 import { ReactNode } from "react";
 
@@ -35,4 +46,4 @@ export default function RootLayout({
       </body>
     </html>
   );
-}
+}

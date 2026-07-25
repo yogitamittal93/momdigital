@@ -7,6 +7,11 @@ import { DoctorQueueService } from '../doctor-queue/doctor-queue.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { firstValueFrom } from 'rxjs';
+import {
+  ML_EXTRACT_TIMEOUT,
+  ML_QUERY_TIMEOUT,
+  ML_HEALTH_TIMEOUT,
+} from './ml-config';
 
 type RagResult = {
   reply: string;
@@ -96,7 +101,10 @@ export class ChatbotService {
           this.httpService.post(
             `${this.mlBaseUrl}/extract`,
             { text: message },
-            { timeout: 8000 }, // ← increased from 5000: cold-start ML can take 5-7s
+            // ML_EXTRACT_TIMEOUT: NER is local (spaCy, no LLM). 8s is sufficient.
+            // Reserved for production scaling (>100 active users): reduce to 5_000
+            // once Railway sleep is disabled and cold-starts are eliminated.
+            { timeout: ML_EXTRACT_TIMEOUT },
           ),
         );
         extracted = mlResponse.data as Record<string, unknown>;
@@ -725,7 +733,10 @@ export class ChatbotService {
   }> {
     try {
       const res = await firstValueFrom(
-        this.httpService.get(`${this.mlBaseUrl}/health`, { timeout: 30_000 }),
+        // ML_HEALTH_TIMEOUT: Flask /health reads an in-memory dict — no ChromaDB wait.
+        // When ML is sleeping, Railway returns a 502 immediately (not after 90s).
+        // Keep this conservative so the status indicator never hangs.
+        this.httpService.get(`${this.mlBaseUrl}/health`, { timeout: ML_HEALTH_TIMEOUT }),
       );
       const data = res.data as {
         status?: string;
@@ -871,7 +882,11 @@ export class ChatbotService {
             nerContext,
             conversationHistory,
           },
-          { timeout: 30000 },
+          // ML_QUERY_TIMEOUT: longest operation — may include Railway sleep wake-up
+          // (~60–90s) plus the Groq LLM call. 90s prevents timeout on first cold-start.
+          // Reserved for production scaling (>100 active users): disable Railway sleep
+          // (sleepApplication = false in ml_service/railway.toml) and reduce to 30_000.
+          { timeout: ML_QUERY_TIMEOUT },
         ),
       );
 

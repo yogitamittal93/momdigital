@@ -2,7 +2,12 @@
 dockerfilePath = "Dockerfile"
 
 [deploy]
+# The API must stay always-on — it is the entry point for all client requests
+# and must remain available to accept the /chatbot/health polls that trigger
+# the ML service to wake from Railway sleep.
+# Never set sleepApplication = true here.
 healthcheckPath = "/api/health"
-healthcheckTimeout = 300
+healthcheckTimeout = 30
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10
+

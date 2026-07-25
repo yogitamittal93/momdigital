@@ -48,7 +48,7 @@ export interface ChatWindowProps {
 }
 
 export function ChatWindow() {
-  const { status: mlStatus, chunksIndexed } = useMlStatus();
+  const { status: mlStatus, chunksIndexed, isWaking, warningMessage } = useMlStatus();
 
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -141,15 +141,14 @@ export function ChatWindow() {
   // ── ML status indicator ──────────────────────────────────────────────────────
   const statusDot =
     mlStatus === 'loading'
-      ? { color: 'bg-yellow-400', label: 'AI connecting…' }
+      ? { color: 'bg-yellow-400', label: isWaking ? 'AI warming up — may take ~60s…' : 'AI connecting…' }
       : mlStatus === 'ok'
       ? { color: 'bg-green-400', label: `AI online · ${chunksIndexed.toLocaleString()} docs` }
       : {
-          color: 'bg-red-400',
-          label:
-            chunksIndexed > 0
-              ? 'AI starting — knowledge base loading'
-              : 'AI offline — check back shortly',
+          color: isWaking ? 'bg-yellow-400' : 'bg-red-400',
+          label: isWaking
+            ? 'AI warming up — may take ~60s…'
+            : 'AI offline — check back shortly',
         };
 
   return (
@@ -166,10 +165,14 @@ export function ChatWindow() {
 
       {/* ── Degraded banner ─────────────────────────────────────────────────── */}
       {mlStatus === 'degraded' && (
-        <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 text-xs text-amber-800">
-          {chunksIndexed > 0
-            ? '⚠️ AI is still loading — your question will be answered, but may take a moment.'
-            : '⚠️ AI service is not ready yet. If this persists, the backend may need configuration (ML_SERVICE_URL / knowledge base).'}
+        <div className={`px-4 py-2 border-b text-xs ${
+          isWaking
+            ? 'bg-amber-50 border-amber-200 text-amber-800'
+            : 'bg-red-50 border-red-200 text-red-800'
+        }`}>
+          {isWaking
+            ? `⏳ ${warningMessage}`
+            : `⚠️ ${warningMessage}`}
         </div>
       )}
 

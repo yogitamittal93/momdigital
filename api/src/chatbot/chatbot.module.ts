@@ -8,11 +8,15 @@ import { PrismaService } from 'prisma/prisma.service';
 import { DoctorQueueModule } from '../doctor-queue/doctor-queue.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { AnalyticsModule } from '../analytics/analytics.module';
+import { HTTP_DEFAULT_TIMEOUT } from './ml-config';
 
 @Module({
   imports: [
+    // Conservative module-level default — individual ML call sites in
+    // ChatbotService override this with ML_QUERY_TIMEOUT / ML_EXTRACT_TIMEOUT.
+    // Reserved for production scaling (>100 active users): increase if needed.
     HttpModule.register({
-      timeout: 30000,
+      timeout: HTTP_DEFAULT_TIMEOUT,
       maxRedirects: 5,
     }),
     JwtModule.register({}),
@@ -24,3 +28,4 @@ import { AnalyticsModule } from '../analytics/analytics.module';
   providers: [ChatbotService, PrismaService, ChatbotAuthGuard],
 })
 export class ChatbotModule {}
+
