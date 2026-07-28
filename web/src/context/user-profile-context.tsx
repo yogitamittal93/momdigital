@@ -66,6 +66,9 @@ export function UserProfileProvider({ children }: { children: React.ReactNode })
   useEffect(() => {
     // Never probe /auth/me on login/register — that fires a 401→refresh with
     // whatever stale cookies are in a normal Chrome profile and races login.
+    // Only check once on mount; subsequent navigations within the app do not
+    // re-probe so a SameSite cookie delivered by an OAuth redirect is not
+    // clobbered by a second stale 401 before the browser propagates the cookie.
     if (isPublicAuthPath(pathname)) {
       setUser(null);
       setError(null);
@@ -94,7 +97,8 @@ export function UserProfileProvider({ children }: { children: React.ReactNode })
     return () => {
       active = false;
     };
-  }, [pathname]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally mount-only — use refreshUser() to re-sync after actions
 
   const refreshUser = useCallback(() => {
     load();

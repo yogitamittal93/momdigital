@@ -105,18 +105,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, loading, error } = useUserProfileContext();
 
-  // Client-side auth guard. The middleware used to check for an access_token
-  // cookie directly, but that cookie is set by the API on a different domain
-  // (Railway) than the frontend (momdigital.live) — the browser never sends
-  // it to Next.js middleware running on the frontend's own domain, so that
-  // check was always failing even for successfully logged-in users. The /me
-  // request itself works fine (it's a direct cross-origin fetch with
-  // credentials, covered by CORS), so we gate on its result here instead.
+  // Client-side auth guard. Redirect to /login only when we have definitively
+  // confirmed there is no authenticated user (loading is false AND user is null).
+  // Do NOT also require `error` — a null user with no error (e.g. fetchMe
+  // returned null after a 401→failed-refresh) is equally unauthenticated.
+  // Requiring `error` was causing a flash-then-logout after Google OAuth because
+  // the first /auth/me probe could silently return null (no thrown error) before
+  // the SameSite cookie from the OAuth redirect had propagated.
   useEffect(() => {
-    if (!loading && !user && error) {
+    if (!loading && !user) {
       router.replace("/login");
     }
-  }, [loading, user, error, router]);
+  }, [loading, user, router]);
 
   const role = user?.role ?? "MOTHER";
   const isExpert = isExpertRole(role);
