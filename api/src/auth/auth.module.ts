@@ -10,6 +10,7 @@ import { RedisService } from 'src/common/redis.service';
 import { GoogleStrategy } from './strategies/google.strategy';
 import { GitHubStrategy } from './strategies/github.strategy';
 import { GoogleOAuthGuard, GitHubOAuthGuard } from './guards/oauth.guard';
+import { AnalyticsModule } from 'src/analytics/analytics.module';
 
 @Global()
 @Module({
@@ -23,6 +24,7 @@ import { GoogleOAuthGuard, GitHubOAuthGuard } from './guards/oauth.guard';
       }),
     }),
     PrismaModule,
+    AnalyticsModule,
   ],
   providers: [
     AuthService,
