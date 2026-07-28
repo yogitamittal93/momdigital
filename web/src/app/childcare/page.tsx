@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { useUserProfile } from "@/hooks/use-user-profile";
 import { api } from "@/lib/api-client";
+import ChildCareReminders from "@/components/childcare/childcare-reminders";
 
 interface FeedEntry {
   id: string;
@@ -350,6 +351,9 @@ export default function ChildCarePage() {
               </Tabs>
             </>
           )}
+
+          {/* Care Reminders — daily & weekly */}
+          {hasBabyInfo && <ChildCareReminders />}
 
           {/* Emergency card — always shown */}
           <Card className="rounded-3xl border-none shadow-lg p-6 bg-destructive/10">

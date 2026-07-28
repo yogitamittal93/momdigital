@@ -10,6 +10,7 @@ import {
   Query,
   Req,
   UseGuards,
+  ValidationPipe,
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { JwtGuard, type JwtPayload } from 'src/auth/jwt.gaurd';
@@ -44,9 +45,11 @@ export class HabitsController {
   @Post()
   createHabit(
     @Req() req: AuthedRequest,
-    // Record<string, unknown> → ValidationPipe treats metatype as Object and
-    // skips whitelist/forbidNonWhitelisted. We validate explicitly instead.
-    @Body() body: Record<string, unknown>,
+    // Use a local pipe to disable whitelist/forbidNonWhitelisted so the global
+    // ValidationPipe doesn't reject every field on a plain Record<string,unknown>.
+    // Manual parseCreateHabitBody() handles all validation.
+    @Body(new ValidationPipe({ whitelist: false, forbidNonWhitelisted: false, transform: false }))
+    body: Record<string, unknown>,
   ) {
     try {
       const dto = parseCreateHabitBody(body);
@@ -66,7 +69,8 @@ export class HabitsController {
   updateHabit(
     @Req() req: AuthedRequest,
     @Param('id') id: string,
-    @Body() body: Record<string, unknown>,
+    @Body(new ValidationPipe({ whitelist: false, forbidNonWhitelisted: false, transform: false }))
+    body: Record<string, unknown>,
   ) {
     const dto = parseUpdateHabitBody(body);
     return this.habitsService.updateHabit(this.userId(req), id, dto);
@@ -105,7 +109,8 @@ export class HabitsController {
   logHabit(
     @Req() req: AuthedRequest,
     @Param('id') habitId: string,
-    @Body() body: Record<string, unknown>,
+    @Body(new ValidationPipe({ whitelist: false, forbidNonWhitelisted: false, transform: false }))
+    body: Record<string, unknown>,
   ) {
     const dto = parseLogHabitBody(body);
     return this.habitsService.logHabit(this.userId(req), habitId, dto);
