@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 import path from "path";
 import fs from "fs";
+import withSerwistInit from "@serwist/next";
 
 // Check if we are running in the monorepo workspace or a standalone Docker container
 const isMonorepo = fs.existsSync(path.join(__dirname, "../package.json"));
@@ -24,5 +25,13 @@ const nextConfig: NextConfig = {
     : undefined,
 };
 
-export default nextConfig;
+// PWA / Service Worker — only for web builds, not mobile (Capacitor handles
+// offline natively). Also disabled outside production to keep hot-reload working.
+const withSerwist = withSerwistInit({
+  swSrc: "src/app/sw.ts",       // your SW source (TypeScript OK)
+  swDest: "public/sw.js",       // compiled output served statically
+  disable: isMobileBuild || process.env.NODE_ENV !== "production",
+});
+
+export default withSerwist(nextConfig);
 
