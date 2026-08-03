@@ -5,9 +5,11 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # System deps: curl for healthcheck, build tools for native packages
+# gosu lets the entrypoint drop from root → appuser after fixing volume ownership
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     build-essential \
+    gosu \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python deps first for layer caching
@@ -26,19 +28,22 @@ COPY . .
 # (HF/transformers, matplotlib, etc.) that try to write caches under ~/.cache.
 RUN addgroup --system appgroup && adduser --system --home /tmp --ingroup appgroup appuser
 
-# /app (including matrny_db/, created at startup by the Hugging Face
-# download step) was copied in as root and is unwritable by appuser without
-# this — the embeddings module would otherwise fail with "Permission denied"
-# trying to create matrny_db/, silently fall back to an empty ChromaDB, and
-# every RAG query would return no context.
+# /app was copied in as root — fix ownership for all static files at build time.
 RUN chown -R appuser:appgroup /app
 
-USER appuser
+# Stay as ROOT so the entrypoint can fix the Railway volume mount at runtime.
+# (Railway mounts volumes as root AFTER the image layers are applied, so the
+# build-time chown above has no effect on /app/matrny_db when a volume is
+# attached. The entrypoint below fixes ownership then drops to appuser via gosu.)
 
-# No EXPOSE for a fixed port — Railway assigns $PORT dynamically at runtime,
-# so the container must bind to whatever it's given, not a hardcoded value.
+# No EXPOSE — Railway assigns $PORT dynamically at runtime.
 
-# 1 worker — Railway's default memory allocation OOM-kills a 2-worker config
-# before either worker can finish loading the ML/embedding stack and serve
-# a request. Bind to $PORT (Railway's healthcheck hits $PORT, not 5000).
-CMD ["sh", "-c", "gunicorn --workers 1 --worker-class gthread --threads 4 --bind 0.0.0.0:${PORT:-5000} --timeout 120 main:app"]
+# Entrypoint runs as root:
+#   1. mkdir -p /app/matrny_db  — creates the mount point if not yet mounted
+#   2. chown it to appuser      — fixes Railway volume ownership at runtime
+#   3. exec gosu appuser …      — drops privileges and launches gunicorn
+#
+# 1 worker — Railway's default memory allocation OOM-kills a 2-worker config.
+CMD ["sh", "-c", \
+    "mkdir -p /app/matrny_db && chown appuser:appgroup /app/matrny_db && \
+    exec gosu appuser gunicorn --workers 1 --bind 0.0.0.0:${PORT:-5000} --timeout 120 main:app"]
