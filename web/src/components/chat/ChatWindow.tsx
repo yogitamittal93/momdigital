@@ -45,17 +45,21 @@ export interface ChatWindowProps {
   userId?: string;
   /** Pass the current user profile for richer context in future features */
   userProfile?: ApiUser;
+  /** Optional context hint, e.g. 'mental-health' to seed a supportive greeting */
+  context?: string;
 }
 
-export function ChatWindow() {
+export function ChatWindow({ context }: ChatWindowProps) {
+  const isMentalHealth = context === 'mental-health';
   const { status: mlStatus, chunksIndexed, isWaking, warningMessage } = useMlStatus();
 
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '0',
       role: 'assistant',
-      content:
-        'Namaste! I am Matrny, your maternal and infant health companion. I combine MBBS clinical guidelines with Ayurvedic wisdom to support you on your journey. How can I help you today?',
+      content: isMentalHealth
+        ? 'Hi, I\'m Matrny 💛 I\'m here to listen. Motherhood can be overwhelming, and it\'s okay to not be okay. You can share anything with me — how you\'re feeling, what\'s weighing on you, or just talk. If you\'re experiencing symptoms of postpartum depression or anxiety, I can also help you understand when to seek professional support. How are you feeling right now?'
+        : 'Namaste! I am Matrny, your maternal and infant health companion. I combine MBBS clinical guidelines with Ayurvedic wisdom to support you on your journey. How can I help you today?',
       confidence: 'auto_safe',
       timestamp: new Date(),
     },
@@ -244,7 +248,10 @@ export function ChatWindow() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask about nutrition, symptoms, baby care, Ayurvedic remedies..."
+            placeholder={isMentalHealth
+              ? "Share how you're feeling, or ask about postpartum emotions..."
+              : "Ask about nutrition, symptoms, baby care, Ayurvedic remedies..."
+            }
             className="flex-1 resize-none rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-300 min-h-[44px] max-h-[120px]"
             rows={1}
           />

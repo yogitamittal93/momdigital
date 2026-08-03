@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { CheckCircle2, Heart, Moon, Sparkles } from "lucide-react";
+import Link from "next/link";
 import AppShell from "@/components/layout/app-shell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -288,15 +289,18 @@ export default function PostpartumPage() {
                   Feeling overwhelmed is normal. Talk to someone whenever needed.
                 </p>
                 <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    className="rounded-full border-secondary text-secondary hover:bg-secondary hover:text-secondary-foreground"
+                  <Link
+                    href="/chat?context=mental-health"
+                    className="inline-flex items-center justify-center rounded-full border border-secondary text-secondary hover:bg-secondary hover:text-secondary-foreground transition-colors px-4 py-2 text-sm font-medium"
                   >
                     Talk to Counselor
-                  </Button>
-                  <Button variant="ghost" className="rounded-full text-secondary">
+                  </Link>
+                  <Link
+                    href="/trusted-help"
+                    className="inline-flex items-center justify-center rounded-full text-secondary hover:bg-secondary/10 transition-colors px-4 py-2 text-sm font-medium"
+                  >
                     Resources
-                  </Button>
+                  </Link>
                 </div>
               </div>
             </div>

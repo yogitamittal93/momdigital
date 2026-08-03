@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   Baby,
   Briefcase,
@@ -22,6 +22,8 @@ import {
   Activity,
   AlertCircle,
   MessageSquare,
+  Grid3X3,
+  X,
 } from "lucide-react";
 import { useUserProfileContext } from "@/context/user-profile-context";
 import type { UserRole } from "@/lib/api-client";
@@ -136,8 +138,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const isActive = (path: string, exact?: boolean) =>
     exact ? pathname === path : pathname.startsWith(path);
 
-  // Mobile nav: show only the first 5 items
-  const mobileNavItems = navItems.slice(0, 5);
+  // Mobile nav: show only the first 4 items; 5th slot is the "More" drawer button
+  const mobileNavItems = navItems.slice(0, 4);
+  const drawerPrimaryItems = navItems.slice(4);
+
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Close drawer on route change
+  useEffect(() => {
+    setDrawerOpen(false);
+  }, [pathname]);
 
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-0">
@@ -188,8 +198,148 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               </Link>
             );
           })}
+          {/* More button — opens the drawer */}
+          <button
+            id="mobile-more-btn"
+            onClick={() => setDrawerOpen(true)}
+            className={`flex flex-col items-center gap-1 px-3 py-2 rounded-2xl transition-all ${
+              drawerOpen
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Grid3X3 className="w-5 h-5" />
+            <span className="text-[10px]">More</span>
+          </button>
         </div>
       </nav>
+
+      {/* ── Mobile slide-up drawer ─────────────────────────────────────── */}
+      {drawerOpen && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[60] md:hidden"
+            onClick={() => setDrawerOpen(false)}
+            aria-hidden="true"
+          />
+          {/* Drawer panel */}
+          <div
+            id="mobile-drawer"
+            className="fixed bottom-0 left-0 right-0 z-[70] md:hidden bg-card rounded-t-3xl shadow-2xl border-t border-border max-h-[82vh] overflow-y-auto"
+            style={{ animation: "slideUp 0.25s cubic-bezier(0.32,0.72,0,1)" }}
+          >
+            <style>{`
+              @keyframes slideUp {
+                from { transform: translateY(100%); }
+                to { transform: translateY(0); }
+              }
+            `}</style>
+
+            {/* Drag handle + close */}
+            <div className="flex items-center justify-between px-5 pt-4 pb-2">
+              <div className="w-10 h-1 bg-muted-foreground/30 rounded-full mx-auto" />
+              <button
+                onClick={() => setDrawerOpen(false)}
+                className="absolute right-4 top-4 w-8 h-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Close menu"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="px-4 pb-8 space-y-1">
+              {/* User identity chip */}
+              {user && (
+                <div className="flex items-center gap-3 px-3 py-3 mb-3 rounded-2xl bg-muted/40">
+                  <div className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-sm shrink-0">
+                    {user.name?.[0]?.toUpperCase() ?? "?"}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold truncate">{user.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {rolePretty[role] ?? role}
+                      {isAdmin && (
+                        <span className="ml-1 text-primary font-semibold">· Admin</span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Remaining primary items (items 4+) */}
+              {drawerPrimaryItems.map((item) => {
+                const Icon = item.icon;
+                const active = isActive(item.path, (item as { exact?: boolean }).exact);
+                return (
+                  <Link
+                    key={item.path}
+                    href={item.path}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all ${
+                      active
+                        ? "bg-primary text-primary-foreground shadow-md"
+                        : "text-foreground hover:bg-muted"
+                    }`}
+                  >
+                    <Icon className="w-5 h-5" />
+                    <span className="font-medium">{item.label}</span>
+                  </Link>
+                );
+              })}
+
+              {/* Secondary items */}
+              {secondaryItems.length > 0 && (
+                <>
+                  <p className="px-4 pt-3 pb-1 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    More
+                  </p>
+                  {secondaryItems.map((item) => {
+                    const Icon = item.icon;
+                    const active = isActive(item.path);
+                    return (
+                      <Link
+                        key={item.path}
+                        href={item.path}
+                        className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all ${
+                          active
+                            ? "bg-primary text-primary-foreground shadow-md"
+                            : "text-foreground hover:bg-muted"
+                        }`}
+                      >
+                        <Icon className="w-5 h-5" />
+                        <span className="font-medium">{item.label}</span>
+                      </Link>
+                    );
+                  })}
+                </>
+              )}
+
+              {/* Admin shortcut */}
+              {isAdmin && (
+                <Link
+                  href="/admin"
+                  className="flex items-center gap-3 px-4 py-3 mt-2 rounded-2xl text-primary border border-primary/30 hover:bg-primary/10 transition-all text-sm font-semibold"
+                >
+                  <Shield className="w-5 h-5" />
+                  Admin Panel
+                </Link>
+              )}
+
+              {/* Legal links */}
+              <div className="mt-4 pt-4 border-t border-border/50 px-4">
+                <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted-foreground font-medium">
+                  <Link href="/about" className="hover:text-primary transition-colors">About</Link>
+                  <Link href="/contact" className="hover:text-primary transition-colors">Contact</Link>
+                  <Link href="/support" className="hover:text-primary transition-colors">Support</Link>
+                  <Link href="/privacy" className="hover:text-primary transition-colors">Privacy</Link>
+                  <Link href="/terms" className="hover:text-primary transition-colors">Terms</Link>
+                </div>
+                <p className="text-[10px] text-muted-foreground/60 mt-2">© {new Date().getFullYear()} MomDigital</p>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* ── Desktop sidebar ───────────────────────────────────────────── */}
       <nav className="hidden md:block fixed left-0 top-0 bottom-0 w-64 bg-card border-r border-border p-6 overflow-y-auto">
