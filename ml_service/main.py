@@ -179,14 +179,16 @@ def query():
 @app.route("/health", methods=["GET"])
 def health():
     state = _snapshot_bootstrap_state()
+    is_ready = state["ready"]
+    http_status = 200 if is_ready else 503
     return jsonify({
-        "status": "ok" if state["ready"] else "degraded",
+        "status": "ok" if is_ready else "degraded",
         "phase": state["phase"],
         "chunks_indexed": state["chunks_indexed"],
-        "chroma_ready": state["ready"],
+        "chroma_ready": is_ready,
         "chroma_error": state["error"],
         "version": "1.0.0"
-    }), 200
+    }), http_status
 
 
 @app.route("/approved-answer", methods=["POST"])

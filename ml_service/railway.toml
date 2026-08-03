@@ -2,9 +2,11 @@
 dockerfilePath = "Dockerfile"
 
 [deploy]
-# Reserved for production scaling (>100 active users):
-# Set sleepApplication = false (or remove this line) when upgrading to always-on.
-sleepApplication = true
+# sleepApplication = false keeps the ML service always alive.
+# Railway's sleep mode was causing 'Stopping Container' after inactivity —
+# the container would stop, then take ~20-30s to wake + re-download the DB
+# on the next request, making the AI appear broken.
+sleepApplication = false
 healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
