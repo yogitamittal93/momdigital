@@ -1,13 +1,14 @@
 ﻿"use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AppShell from "@/components/layout/app-shell";
 import { ChatWindow } from "@/components/chat/ChatWindow";
 import { fetchMe, ApiUser } from "@/lib/api-client";
 import { Loader2 } from "lucide-react";
 
-export default function ChatPage() {
+// ── Inner component that reads searchParams (must be inside Suspense) ──────────
+function ChatPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const context = searchParams.get("context") ?? undefined;
@@ -23,7 +24,10 @@ export default function ChatPage() {
           return;
         }
         const role = user.role ?? "MOTHER";
-        const isExpert = ["MBBS", "AYURVEDA", "NUTRITIONIST", "CHEF", "YOGA_TRAINER", "WORKOUT_TRAINER", "DANCE_TEACHER", "ADMIN"].includes(role);
+        const isExpert = [
+          "MBBS", "AYURVEDA", "NUTRITIONIST", "CHEF",
+          "YOGA_TRAINER", "WORKOUT_TRAINER", "DANCE_TEACHER", "ADMIN",
+        ].includes(role);
         if (isExpert || user.isAdmin) {
           router.replace("/pro");
           return;
@@ -70,7 +74,9 @@ export default function ChatPage() {
             ) : (
               <>
                 <h1 className="text-2xl md:text-3xl mb-2">Maternity Help</h1>
-                <p className="text-muted-foreground">Ask Matrny about your maternal and infant health query</p>
+                <p className="text-muted-foreground">
+                  Ask Matrny about your maternal and infant health query
+                </p>
               </>
             )}
           </div>
@@ -81,5 +87,20 @@ export default function ChatPage() {
         </div>
       </div>
     </AppShell>
+  );
+}
+
+// ── Page export wraps the inner component in Suspense ─────────────────────────
+export default function ChatPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center min-h-screen">
+          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+        </div>
+      }
+    >
+      <ChatPageInner />
+    </Suspense>
   );
 }
