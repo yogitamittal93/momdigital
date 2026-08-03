@@ -16,6 +16,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { ConfigService } from '@nestjs/config';
 import { IsEmail, IsNotEmpty, MinLength } from 'class-validator';
 import { AuthService } from './auth.service';
@@ -381,6 +382,7 @@ export class AuthController {
   @UseGuards(JwtGuard)
   @UseInterceptors(
     FileInterceptor('avatar', {
+      storage: memoryStorage(),
       limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB max
     }),
   )

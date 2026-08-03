@@ -156,15 +156,15 @@ export function ChatWindow({ context }: ChatWindowProps) {
         };
 
   return (
-    <div className="flex flex-col h-full max-w-2xl mx-auto min-h-[500px]">
+    <div className="flex flex-col h-full max-w-2xl mx-auto min-h-[500px] rounded-2xl overflow-hidden border border-border">
 
-      {/* ── Status bar ──────────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-100 bg-gray-50 rounded-t-2xl">
+      {/* ── Status bar ─────────────────────────────────────────── */}
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-muted/50 rounded-t-2xl">
         <span
           id="ml-status-dot"
           className={`inline-block w-2 h-2 rounded-full ${statusDot.color} ${mlStatus === 'loading' ? 'animate-pulse' : ''}`}
         />
-        <span className="text-xs text-gray-500">{statusDot.label}</span>
+        <span className="text-xs text-muted-foreground">{statusDot.label}</span>
       </div>
 
       {/* ── Degraded banner ─────────────────────────────────────────────────── */}
@@ -180,8 +180,8 @@ export function ChatWindow({ context }: ChatWindowProps) {
         </div>
       )}
 
-      {/* ── Message list ────────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      {/* ── Message list ─────────────────────────────────────────── */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-background">
         {messages.map((message) => (
           <div
             key={message.id}
@@ -205,14 +205,14 @@ export function ChatWindow({ context }: ChatWindowProps) {
                 className={`px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
                   message.role === 'user'
                     ? 'bg-rose-500 text-white rounded-br-sm'
-                    : 'bg-white border border-gray-100 text-gray-800 rounded-bl-sm shadow-sm'
+                    : 'bg-muted text-foreground rounded-bl-sm shadow-sm border border-border'
                 }`}
               >
                 {message.content || '…'}
               </div>
 
               {message.sources && message.sources.length > 0 && (
-                <div className="text-xs text-gray-400 px-2">
+                <div className="text-xs text-muted-foreground px-2">
                   Sources: {message.sources.join(', ')}
                 </div>
               )}
@@ -222,7 +222,7 @@ export function ChatWindow({ context }: ChatWindowProps) {
 
         {isLoading && (
           <div className="flex justify-start">
-            <div className="bg-white border border-gray-100 shadow-sm rounded-2xl rounded-bl-sm px-4 py-3">
+            <div className="bg-muted border border-border shadow-sm rounded-2xl rounded-bl-sm px-4 py-3">
               <div className="flex gap-1 items-center h-4">
                 <span className="w-1.5 h-1.5 bg-rose-300 rounded-full animate-bounce [animation-delay:0ms]" />
                 <span className="w-1.5 h-1.5 bg-rose-300 rounded-full animate-bounce [animation-delay:150ms]" />
@@ -234,15 +234,15 @@ export function ChatWindow({ context }: ChatWindowProps) {
         <div ref={bottomRef} />
       </div>
 
-      {/* ── Disclaimer ──────────────────────────────────────────────────────── */}
-      <div className="text-center text-xs text-gray-400 px-4 pb-2">
+      {/* ── Disclaimer ─────────────────────────────────────────── */}
+      <div className="text-center text-xs text-muted-foreground px-4 pb-2 bg-background">
         Matrny provides AI-generated health information only. Not a substitute for
         professional medical advice. Emergency: <strong>112</strong> | NHM:{' '}
         <strong>104</strong>
       </div>
 
-      {/* ── Input area ──────────────────────────────────────────────────────── */}
-      <div className="p-4 border-t border-gray-100 bg-white">
+      {/* ── Input area ─────────────────────────────────────────── */}
+      <div className="p-4 border-t border-border bg-card">
         <div className="flex gap-2">
           <textarea
             value={input}
@@ -252,7 +252,7 @@ export function ChatWindow({ context }: ChatWindowProps) {
               ? "Share how you're feeling, or ask about postpartum emotions..."
               : "Ask about nutrition, symptoms, baby care, Ayurvedic remedies..."
             }
-            className="flex-1 resize-none rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-300 min-h-[44px] max-h-[120px]"
+            className="flex-1 resize-none rounded-xl border border-border bg-background text-foreground px-4 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-rose-400 min-h-[44px] max-h-[120px]"
             rows={1}
           />
           <button
