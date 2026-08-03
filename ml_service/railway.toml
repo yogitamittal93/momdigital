@@ -2,11 +2,18 @@
 dockerfilePath = "Dockerfile"
 
 [deploy]
-# sleepApplication = false keeps the ML service always alive.
-# Railway's sleep mode was causing 'Stopping Container' after inactivity —
-# the container would stop, then take ~20-30s to wake + re-download the DB
-# on the next request, making the AI appear broken.
-sleepApplication = false
+# BUDGET NOTE: sleepApplication = true keeps costs within Railway's $5/month plan.
+# The ML service (ChromaDB + SentenceTransformer) uses ~500-800MB RAM always-on,
+# which alone would exceed the $5 credit.
+#
+# To keep the service warm WITHOUT upgrading (recommended):
+#   → Set up a free pinger at https://cron-job.org or https://uptimerobot.com
+#   → Ping URL: https://<your-ml-service>.up.railway.app/health
+#   → Interval: every 10 minutes (Railway sleeps after ~10min of inactivity)
+#
+# To go always-on (upgrade Railway plan first):
+#   → Set sleepApplication = false
+sleepApplication = true
 healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
