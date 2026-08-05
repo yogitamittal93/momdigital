@@ -55,3 +55,7 @@ playwright/.auth/
 *.sublime-project
 *.sublime-workspace
 .eslintcache
+# Android signing secrets — NEVER commit these
+web/android/keystore.properties
+web/android/app/*.jks
+web/android/app/*.keystore
