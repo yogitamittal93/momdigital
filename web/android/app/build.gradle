@@ -8,10 +8,10 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace "com.momdigital.app"
+    namespace "momdigital.live"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.momdigital.app"
+        applicationId "momdigital.live"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 2
@@ -25,10 +25,10 @@ android {
     }
     signingConfigs {
         release {
-            keyAlias keystoreProperties['keyAlias'] ?: System.getenv('KEY_ALIAS')
-            keyPassword keystoreProperties['keyPassword'] ?: System.getenv('KEY_PASSWORD')
-            storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
-            storePassword keystoreProperties['storePassword'] ?: System.getenv('STORE_PASSWORD')
+            storeFile      rootProject.file("momdigital-release.jks")
+            storePassword  "IamLuckiest@93"
+            keyAlias       "momdigital"
+            keyPassword    "IamLuckiest@93"
         }
     }
     buildTypes {
