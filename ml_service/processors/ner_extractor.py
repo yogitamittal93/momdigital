@@ -47,11 +47,21 @@ def extract_entities(text):
             extracted_data["weight"] = ent.text
             
         # Extract Pregnancy Week or Baby Age
+        # Scope the digit search to the entity text only (not the whole sentence)
+        # to avoid grabbing an unrelated number from the surrounding context.
         if ent.label_ == "DATE":
-            if "week" in text_lower:
-                extracted_data["pregnancyWeek"] = re.findall(r'\d+', text_lower)[0]
+            ent_nums = re.findall(r'\d+', ent.text)
+            if not ent_nums:
+                pass  # DATE entity with no digits — skip
             elif "month" in text_lower:
-                extracted_data["babyAgeMonths"] = re.findall(r'\d+', text_lower)[0]
+                # Baby age in months — clear pregnancyWeek so the two signals
+                # don't coexist from NER alone.  The service layer handles the
+                # 'pregnant again with older child' case via profile dates.
+                extracted_data["babyAgeMonths"] = ent_nums[0]
+                extracted_data["pregnancyWeek"] = None
+            elif "week" in text_lower and not extracted_data["babyAgeMonths"]:
+                # Only set pregnancyWeek when we haven't already found a baby age
+                extracted_data["pregnancyWeek"] = ent_nums[0]
 
     # Medical Issues (MBBS/Ayurveda context)
     medical_keywords = ["diabetes", "thyroid", "anemia", "bp", "sugar", "pcos"]

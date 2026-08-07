@@ -806,10 +806,14 @@ export class ChatbotService {
         .reverse()
         .map((m) => ({ role: m.role, content: m.content }));
 
-      // Calculate pregnancy week from user.dueDate
+      const today = new Date();
+
+      // ── Pregnancy week ────────────────────────────────────────────────────
+      // Derive from user.dueDate ONLY when the due date is still in the future
+      // (i.e. the baby has not been born yet). A past dueDate means the
+      // pregnancy is over — we must not show pregnancy context in that case.
       let pregnancyWeek = extracted.pregnancyWeek as number | null;
-      if (!pregnancyWeek && user.dueDate) {
-        const today = new Date();
+      if (!pregnancyWeek && user.dueDate && new Date(user.dueDate) > today) {
         const due = new Date(user.dueDate);
         const msDiff = due.getTime() - today.getTime();
         const daysDiff = Math.ceil(msDiff / (1000 * 60 * 60 * 24));
@@ -820,10 +824,11 @@ export class ChatbotService {
         );
       }
 
-      // Calculate baby age in months from user.babyBirthDate
+      // ── Baby age in months ────────────────────────────────────────────────
+      // Derive from user.babyBirthDate ONLY when the birth date is in the past
+      // (sanity check — a future babyBirthDate is a data-entry error).
       let babyAgeMonths = extracted.babyAgeMonths as number | null;
-      if (!babyAgeMonths && user.babyBirthDate) {
-        const today = new Date();
+      if (!babyAgeMonths && user.babyBirthDate && new Date(user.babyBirthDate) <= today) {
         const birth = new Date(user.babyBirthDate);
         const months =
           (today.getFullYear() - birth.getFullYear()) * 12 +
@@ -831,14 +836,34 @@ export class ChatbotService {
         babyAgeMonths = Math.max(0, months);
       }
 
-      // Calculate if profile is complete for health guidance (week/age + vitals)
+      // ── Scenario reconciliation ───────────────────────────────────────────
+      // Four valid states:
+      //   1. Pregnant only            → pregnancyWeek set,  babyAgeMonths null
+      //   2. Postpartum / mother only → pregnancyWeek null, babyAgeMonths set
+      //   3. Pregnant again + older child → BOTH set (intentional)
+      //   4. No profile yet           → both null
+      //
+      // If the baby is born (babyBirthDate in the past) but there is no active
+      // future pregnancy (dueDate missing or also in the past), clear any
+      // pregnancyWeek that may have leaked through from a stale dueDate or a
+      // misread NER entity — the user is a mother, not currently pregnant.
+      const babyIsAlreadyBorn =
+        user.babyBirthDate && new Date(user.babyBirthDate) <= today;
+      const hasActiveFuturePregnancy =
+        user.dueDate && new Date(user.dueDate) > today;
+
+      if (babyIsAlreadyBorn && !hasActiveFuturePregnancy) {
+        // Mother is not currently pregnant — wipe pregnancyWeek regardless of
+        // what NER may have extracted (e.g. "my baby is 6 months old" containing
+        // a number that NER misclassified as a pregnancy week).
+        pregnancyWeek = null;
+      }
+
+      // ── Profile completeness ──────────────────────────────────────────────
       const vitals = await this.userHasVitals(userId, extracted, user);
       const hasVitals = vitals.hasWeight && vitals.hasHeight;
-      const hasStage =
-        user.dueDate ||
-        user.babyBirthDate ||
-        extracted.pregnancyWeek ||
-        extracted.babyAgeMonths;
+      // A stage is "known" if we have at least one of the resolved values.
+      const hasStage = pregnancyWeek || babyAgeMonths;
       const profileComplete = Boolean(
         user.name &&
         !user.name.toLowerCase().includes('guest') &&
@@ -846,16 +871,11 @@ export class ChatbotService {
         hasVitals,
       );
 
-      // List what key fields are missing
+      // ── Missing fields list ───────────────────────────────────────────────
       const missingFields: string[] = [];
       if (!user.name || user.name.toLowerCase().includes('guest'))
         missingFields.push('name');
-      if (
-        !user.dueDate &&
-        !extracted.pregnancyWeek &&
-        !user.babyBirthDate &&
-        !extracted.babyAgeMonths
-      ) {
+      if (!hasStage) {
         missingFields.push('pregnancyWeekOrBabyAge');
       }
       if (!vitals.hasWeight) missingFields.push('weight');
